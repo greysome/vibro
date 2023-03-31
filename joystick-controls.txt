@@ -1,0 +1,10 @@
+Controls for Logitech Extreme 3D Pro Joystick
+Axis 0: left/right
+Axis 1: up/down
+Axis 2: twist left/right
+Axis 4: thing below
+Button 11: behind
+Buttons: 15 16 17 9, for octave up/down
+Buttons: 4 2 1 3 for directional,
+Buttons: 7 6 8 5 13 14 for below
+Button 0 for left
