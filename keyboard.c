@@ -1,10 +1,11 @@
-#include<string.h>
+#include <string.h>
 #include <stdio.h>
 #include <math.h>
 #include "tinywav/tinywav.h"
 #include "raylib.h"
 
 /** C macros **/
+#define min(a,b) ((a) < (b) ? (a) : (b))
 #define clamp(x,min,max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
 #define abs(x) ((x) < 0 ? -(x) : (x))
 #define mod(a,b) (((a) % (b) < 0 ? (a) % (b) + (b) : (a) % (b)))
@@ -43,18 +44,20 @@
 #define SEMITONE 1.05946
 // In Hz
 #define C4 261.6
-#define CURFREQ (C4 * \
-                 pow(2, octave) * \
+#define CURFREQ (C4 *                     \
+                 pow(2, octave) *         \
                  pow(SEMITONE, curnote) * \
-                 freqoffset * \
-                 freqoffset2 * \
-                 freqoffset3 * \
+                 freqoffset *             \
+                 freqoffset2 *            \
+                 freqoffset3 *            \
                  freqoffset_drop)
 
 #define TRI 0
 #define SAW 1
 #define PULSE 2
 int wavetype = SAW;
+// For pulse wave
+float curpulsewidth;
 
 /** Note/frequency **/
 // The number of semitones above the C at the current octave.
@@ -94,34 +97,34 @@ float curvol = 1.0;
 // A volume envelope is hardcoded to have exactly 60 frames,
 // which is also the set FPS. Each entry represents a proportion
 // of notevol.
-#define envel6(a,b,c,d,e,f) \
-  { \
-    a,a,a,a,a,a,a,a,a,a, \
-    b,b,b,b,b,b,b,b,b,b, \
-    c,c,c,c,c,c,c,c,c,c, \
-    d,d,d,d,d,d,d,d,d,d, \
-    e,e,e,e,e,e,e,e,e,e, \
-    f,f,f,f,f,f,f,f,f,f, \
+#define envel6(a,b,c,d,e,f)                     \
+  {                                             \
+    a,a,a,a,a,a,a,a,a,a,                        \
+    b,b,b,b,b,b,b,b,b,b,                        \
+    c,c,c,c,c,c,c,c,c,c,                        \
+    d,d,d,d,d,d,d,d,d,d,                        \
+    e,e,e,e,e,e,e,e,e,e,                        \
+    f,f,f,f,f,f,f,f,f,f,                        \
   }
 
-#define envel6_rapid_in(a,b,c,d,e,f) \
-  { \
-    a,a,a,b,b,b,c,c,c,d, \
-    d,d,e,e,e,f,f,f,1,1, \
-    1,1,1,1,1,1,1,1,1,1, \
-    1,1,1,1,1,1,1,1,1,1, \
-    1,1,1,1,1,1,1,1,1,1, \
-    1,1,1,1,1,1,1,1,1,1, \
+#define envel6_rapid_in(a,b,c,d,e,f)            \
+  {                                             \
+    a,a,a,b,b,b,c,c,c,d,                        \
+    d,d,e,e,e,f,f,f,1,1,                        \
+    1,1,1,1,1,1,1,1,1,1,                        \
+    1,1,1,1,1,1,1,1,1,1,                        \
+    1,1,1,1,1,1,1,1,1,1,                        \
+    1,1,1,1,1,1,1,1,1,1,                        \
   }
 
-#define envel6_rapid_out(a,b,c,d,e,f) \
-  { \
-    a,a,a,b,b,b,c,c,c,d, \
-    d,d,e,e,e,f,f,f,0,0, \
-    0,0,0,0,0,0,0,0,0,0, \
-    0,0,0,0,0,0,0,0,0,0, \
-    0,0,0,0,0,0,0,0,0,0, \
-    0,0,0,0,0,0,0,0,0,0, \
+#define envel6_rapid_out(a,b,c,d,e,f)           \
+  {                                             \
+    a,a,a,b,b,b,c,c,c,d,                        \
+    d,d,e,e,e,f,f,f,0,0,                        \
+    0,0,0,0,0,0,0,0,0,0,                        \
+    0,0,0,0,0,0,0,0,0,0,                        \
+    0,0,0,0,0,0,0,0,0,0,                        \
+    0,0,0,0,0,0,0,0,0,0,                        \
   }
 
 #define NOENVEL_IN envel6_rapid_in(1,1,1,1,1,1)
@@ -129,6 +132,7 @@ float curvol = 1.0;
 
 float attackenvel[FPS] = envel6_rapid_in(1.5,1.2,1.1,1.0,1.0,1.0);
 float releaseenvel[FPS] = envel6_rapid_out(1,0.5,0.2,0.0,0.0,0.0);
+float pulsewidthenvel[3] = {0.5,0.5,0.5};
 
 /** Sustain **/
 int sustain = 0; // Sustain current note?
@@ -179,6 +183,12 @@ int recording = 0;
 // Struct to facilitate .wav output
 TinyWav tw;
 
+/** Mouse input **/
+// At each frame, exactly one of the variables will be set
+// depending on whether the vertical or horizontal motion
+// of the mouse is larger.
+float mousedx = 0;
+float mousedy = 0;
 
 
 /** Synthesis functions. Outputs a value between -1 and 1. **/
@@ -197,7 +207,7 @@ float nes_saw(float phase) {
 }
 
 float nes_pulse(float phase) {
-  return phase >= 0.5 ? 1 : -1;
+  return phase >= curpulsewidth ? -1 : 1;
 }
   
 void synthesise(void *buffer, unsigned int frames) {
@@ -235,6 +245,9 @@ void synthesise(void *buffer, unsigned int frames) {
   input.
 **/
 void update_notevol() {
+  notevol += clamp(mousedx * 0.01, -0.01, 0.01);
+  notevol = clamp(notevol, 0, 1);
+
 #define key2vol(key,vol) if (keydown(key)) notevol = vol;
   key2vol(ONE,0.1);
   key2vol(TWO,0.2);
@@ -264,7 +277,6 @@ void update_pitchbend() {
   if (curstate == PRESSED)
     freqoffset = 1;
   float dy = GetMouseWheelMove();
-  //float dy = -GetGamepadAxisMovement(0,1);
   if (dy > 0)
     freqoffset *= pow(1.0194, dy);
   else
@@ -274,12 +286,11 @@ void update_pitchbend() {
 void update_gliss() {
   if (curstate == PRESSED)
     freqoffset2 = 1;
-  float dy = GetMouseDelta().y;
   float factor = 1.002;
-  if (dy > 0)
-    freqoffset2 /= pow(factor, dy);
+  if (mousedy > 0)
+    freqoffset2 /= pow(factor, mousedy);
   else
-    freqoffset2 *= pow(factor, -dy);
+    freqoffset2 *= pow(factor, -mousedy);
   freqoffset2 = clamp(freqoffset2, 0.5, 2);
 }
 
@@ -305,9 +316,19 @@ void update_effects() {
 
 
 void update_vib() {
-  vibphase += vibspeed / FPS;
+  // Momentarily kill vibrato when a new note is pressed
+  if (curstate == PRESSED) {
+    vibdepth = 1;
+    curvibstate = STILLRELEASED;
+    frames_onspace = 0;
+    frames_betweenspace = 0;
+    freqoffset3 = 1;
+    return;
+  }
 
+  vibphase += vibspeed / FPS;
   prevvibstate = curvibstate;
+
   if (keydown(SPACE))
     curvibstate = VIBPLAYING ? STILLPRESSED : PRESSED;
   else
@@ -320,8 +341,8 @@ void update_vib() {
   else {
     if (frames_betweenspace > 30) {
       // Make vibrato decay if not 'replenished'
-      vibspeed *= 0.6;
-      vibphase *= 0.6;
+      vibspeed *= 0.8;
+      vibphase *= 0.8;
     }
     frames_betweenspace++;
   }
@@ -336,6 +357,10 @@ void update_vib() {
   vibphase += vibspeed;
   if (vibphase >= 1) vibphase = 0;
   freqoffset3 = pow(vibdepth, sinf(vibphase*2*PI));
+}
+
+void update_pulsewidth() {
+  curpulsewidth = pulsewidthenvel[min(frames_newnote,2)];
 }
 
 void update_wavetype() {
@@ -423,11 +448,13 @@ void update_notestates() {
       curnote = x;
     }
   }
-  else if (!sustain) // If sustain, maintain previous state
+  else if (!sustain) // If sustain, maintain previous state...
     curstate = (x == -1) ? STILLRELEASED : STILLPRESSED;
+  else if (sustain && (curstate == PRESSED)) // ...unless note was just pressed
+    curstate = STILLPRESSED;
 
   // Update frames
-  if (curstate != STILLPRESSED)
+  if (curstate == PRESSED)
     frames_newnote = 0;
   else
     frames_newnote++;
@@ -443,10 +470,10 @@ void setdisplaytxt() {
   int abs_note = curnote + octave * 12;
   int scaledegree = mod(abs_note, 12);
 
-#define scaledeg2txt(x,txt) \
-  if (scaledegree == x) { \
+#define scaledeg2txt(x,txt)                                    \
+  if (scaledegree == x) {                                      \
     notetxt = TextFormat(txt"%d", octave + (curnote/12) + 4);  \
-  } \
+  }                                                            \
 
   scaledeg2txt(0,"C-");
   scaledeg2txt(1,"C#");
@@ -489,16 +516,16 @@ void drawwave() {
     if (nextphase >= 1)
       nextphase -= 1;
     if (wavetype == TRI) {
-      y = HEIGHT/2 + 100 * curvol * nes_tri(phase);
-      y_ = HEIGHT/2 + 100 * curvol * nes_tri(nextphase);
+      y = HEIGHT/2 - 100 * curvol * nes_tri(phase);
+      y_ = HEIGHT/2 - 100 * curvol * nes_tri(nextphase);
     }
     else if (wavetype == SAW) {
-      y = HEIGHT/2 + 100 * curvol * nes_saw(phase);
-      y_ = HEIGHT/2 + 100 * curvol * nes_saw(nextphase);
+      y = HEIGHT/2 - 100 * curvol * nes_saw(phase);
+      y_ = HEIGHT/2 - 100 * curvol * nes_saw(nextphase);
     }
     else if (wavetype == PULSE) {
-      y = HEIGHT/2 + 100 * curvol * nes_pulse(phase);
-      y_ = HEIGHT/2 + 100 * curvol * nes_pulse(nextphase);
+      y = HEIGHT/2 - 100 * curvol * nes_pulse(phase);
+      y_ = HEIGHT/2 - 100 * curvol * nes_pulse(nextphase);
     }
     Vector2 start = {i, y};
     Vector2 end = {i+2, y_};
@@ -514,10 +541,10 @@ void drawwave() {
 #define YSPACE 50
 #define DEFAULTFONT GetFontDefault()
 // Draw text with anchors at different corners
-#define DrawTextLL(text,x,_y,fontsize,color) \
+#define DrawTextLL(text,x,_y,fontsize,color)                           \
   DrawText(text, x, _y - MeasureTextEx(DEFAULTFONT,text,fontsize,0).y, \
      fontsize, color)
-#define DrawTextUR(text,x,y,fontsize,color) \
+#define DrawTextUR(text,x,y,fontsize,color)                           \
   DrawText(text, x - MeasureText(text,fontsize), y, fontsize, color)
 
 void draw() {
@@ -561,6 +588,13 @@ int main() {
   DisableCursor();
   SetTargetFPS(FPS);
   while (!WindowShouldClose()) {
+    mousedx = GetMouseDelta().x;
+    mousedy = GetMouseDelta().y;
+    if (abs(mousedx) >= abs(mousedy))
+      mousedy = 0;
+    else
+      mousedx = 0;
+
     update_wavetype();
     update_notetables();
     update_notestates();
@@ -571,6 +605,7 @@ int main() {
     update_vib();
     update_notevol();
     update_curvol();
+    update_pulsewidth();
 
     if (keypressed(GRAVE)) {
       if (!recording)
@@ -596,6 +631,23 @@ int main() {
         ToggleFullscreen();
       }
     }
+
+#define set_pulsewidthenvel(a,b,c) {            \
+      pulsewidthenvel[0] = a;                   \
+      pulsewidthenvel[1] = b;                   \
+      pulsewidthenvel[2] = c;                   \
+    }                                           \
+
+    if (keypressed(Q)) {
+      set_pulsewidthenvel(0.5,0.5,0.5);
+    }
+    else if (keypressed(W)) {
+      set_pulsewidthenvel(0.25,0.25,0.25);
+    }
+    else if (keypressed(E)) {
+      set_pulsewidthenvel(0.125,0.25,0.25);
+    }
+#undef set_pulsewidthenvel
 
     BeginDrawing();
     draw();
