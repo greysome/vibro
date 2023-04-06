@@ -55,7 +55,7 @@
 #define TRI 0
 #define SAW 1
 #define PULSE 2
-int wavetype = SAW;
+int wavetype = PULSE;
 // For pulse wave
 float curpulsewidth;
 
@@ -68,6 +68,7 @@ int curnote;
 float freqoffset = 1;
 // Changing frequency via mouse movement. For glisses.
 float freqoffset2 = 1;
+int glisslock = 0;
 // Changing frequency via space bar. For vibrato.
 float freqoffset3 = 1;
 
@@ -92,6 +93,14 @@ float notevol = 1.0;
 // Similar by notevol, but updates frame-by-frame according
 // to attacks and releases
 float curvol = 1.0;
+// A setting that when enabled, always sets the volume to a fixed
+// level when a new note is pressed. (This fixed level can only be
+// changed with the volume control buttons 1 - 0.)
+int constvol = 0;
+// The aforementioned fixed level
+// In contrast, notevol can be changed via dynamic volume control
+// (i.e. moving the mouse left and right).
+float startnotevol = 1.0;
 
 /** Volume envelopes **/
 // A volume envelope is hardcoded to have exactly 60 frames,
@@ -130,8 +139,9 @@ float curvol = 1.0;
 #define NOENVEL_IN envel6_rapid_in(1,1,1,1,1,1)
 #define NOENVEL_OUT envel6_rapid_out(0,0,0,0,0,0)
 
-float attackenvel[FPS] = envel6_rapid_in(1.5,1.2,1.1,1.0,1.0,1.0);
-float releaseenvel[FPS] = envel6_rapid_out(1,0.5,0.2,0.0,0.0,0.0);
+//float attackenvel[FPS] = envel6_rapid_in(1.5,1.2,1.1,1,1,1);
+float attackenvel[FPS] = envel6_rapid_in(1,1,1,1,1,1);
+float releaseenvel[FPS] = envel6_rapid_out(1,0.5,0.2,0,0,0);
 float pulsewidthenvel[3] = {0.5,0.5,0.5};
 
 /** Sustain **/
@@ -209,7 +219,7 @@ float nes_saw(float phase) {
 float nes_pulse(float phase) {
   return phase >= curpulsewidth ? -1 : 1;
 }
-  
+
 void synthesise(void *buffer, unsigned int frames) {
   short *d = (short *) buffer;
   float wavbuf[frames];
@@ -227,9 +237,15 @@ void synthesise(void *buffer, unsigned int frames) {
     amplitude *= curvol * MAXVOL;
     d[i] = (short) (amplitude * pow(2, BITDEPTH));
     if (recording) {
-      // For some reason, without this line the .wav is completely
-      // corrupted.
-			amplitude /= MAXVOL;
+      // For some reason, these changes need to be made to the
+      // amplitude or else the .wav file will corrupt, particularly at
+      // low volumes.
+      // I have ZERO idea why that is the case.
+      if (amplitude >= 0)
+        amplitude = 0;
+      else
+        amplitude *= 2;
+      amplitude -= fmodf2(amplitude, 0.01);
       wavbuf[i] = amplitude;
     }
 
@@ -237,7 +253,9 @@ void synthesise(void *buffer, unsigned int frames) {
     if (curphase >= 1)
       curphase = fmodf(curphase, 1.0);
   }
-	tinywav_write_f(&tw, wavbuf, frames);
+
+  if (recording)
+    tinywav_write_f(&tw, wavbuf, frames);
 }
 
 /**
@@ -245,10 +263,14 @@ void synthesise(void *buffer, unsigned int frames) {
   input.
 **/
 void update_notevol() {
-  notevol += clamp(mousedx * 0.01, -0.01, 0.01);
+  notevol += clamp(mousedx * 0.001, -0.01, 0.01);
   notevol = clamp(notevol, 0, 1);
 
-#define key2vol(key,vol) if (keydown(key)) notevol = vol;
+#define key2vol(key,vol) if (keydown(key)) {    \
+    notevol = vol;                              \
+    startnotevol = vol;                         \
+  }
+
   key2vol(ONE,0.1);
   key2vol(TWO,0.2);
   key2vol(THREE,0.3);
@@ -260,6 +282,9 @@ void update_notevol() {
   key2vol(NINE,0.9);
   key2vol(ZERO,1.0);
 #undef key2vol
+
+  if (curstate == PRESSED && constvol)
+    notevol = startnotevol;
 }
 
 void update_curvol() {
@@ -286,6 +311,8 @@ void update_pitchbend() {
 void update_gliss() {
   if (curstate == PRESSED)
     freqoffset2 = 1;
+  if (glisslock)
+    return;
   float factor = 1.002;
   if (mousedy > 0)
     freqoffset2 /= pow(factor, mousedy);
@@ -305,7 +332,7 @@ void update_effects() {
         freqoffset_drop = 1;
       }
       else
-        freqoffset_drop *= 0.9;
+        freqoffset_drop *= 0.95;
     else {
       curstate = RELEASED;
       frames_drop = 0;
@@ -544,6 +571,10 @@ void drawwave() {
 #define DrawTextLL(text,x,_y,fontsize,color)                           \
   DrawText(text, x, _y - MeasureTextEx(DEFAULTFONT,text,fontsize,0).y, \
      fontsize, color)
+#define DrawTextLR(text,x,_y,fontsize,color)                  \
+  DrawText(text, x - MeasureText(text,fontsize),              \
+           _y - MeasureTextEx(DEFAULTFONT,text,fontsize,0).y, \
+           fontsize, color)
 #define DrawTextUR(text,x,y,fontsize,color)                           \
   DrawText(text, x - MeasureText(text,fontsize), y, fontsize, color)
 
@@ -562,12 +593,17 @@ void draw() {
   if (PLAYING)
     DrawText(notetxt, XMARGIN, YMARGIN+2*YSPACE,
              FONTSIZE, WHITE);
-
   DrawTextLL(voltxt, XMARGIN, HEIGHT-YMARGIN, FONTSIZE, WHITE);
+
   if (sustain)
     DrawTextLL("SUSTAIN", XMARGIN, HEIGHT-YMARGIN-YSPACE,
                FONTSIZE, WHITE);
-
+  if (glisslock)
+    DrawTextLR("GLISS LOCK", WIDTH-XMARGIN, HEIGHT-YMARGIN,
+               FONTSIZE, WHITE);
+  if (constvol)
+    DrawTextLR("CONST VOL", WIDTH-XMARGIN, HEIGHT-YMARGIN-YSPACE,
+               FONTSIZE, WHITE);
   if (recording)
     DrawTextUR("RECORDING", WIDTH-XMARGIN, YMARGIN,
                FONTSIZE, WHITE);
@@ -607,12 +643,18 @@ int main() {
     update_curvol();
     update_pulsewidth();
 
+    if (keypressed(LEFT_SHIFT))
+      constvol = !constvol;
+
+    if (keypressed(CAPS_LOCK))
+      glisslock = !glisslock;
+
     if (keypressed(GRAVE)) {
       if (!recording)
         tinywav_open_write(&tw,
           1, // number of channels
           SAMPLERATE,
-          TW_FLOAT32,
+          TW_INT16,
           TW_INLINE,
           RECORDFILE
         );
@@ -638,7 +680,7 @@ int main() {
       pulsewidthenvel[2] = c;                   \
     }                                           \
 
-    if (keypressed(Q)) {
+    if (keypressed(Q) || keypressed(P)) {
       set_pulsewidthenvel(0.5,0.5,0.5);
     }
     else if (keypressed(W)) {
