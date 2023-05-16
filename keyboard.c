@@ -72,6 +72,10 @@ int glisslock = 0;
 // Changing frequency via space bar. For vibrato.
 float freqoffset3 = 1;
 
+// Pitch bend variables to do pitch correction
+int frames_noscroll = 0;
+int scrolled = 0;
+
 // There are two ways to change the octave, via the up and down
 // arrow keys and via left and right mouse clicks.
 // The former method changes preoctave, whereas the latter
@@ -141,7 +145,17 @@ float startnotevol = 1.0;
 
 //float attackenvel[FPS] = envel6_rapid_in(1.5,1.2,1.1,1,1,1);
 float attackenvel[FPS] = envel6_rapid_in(1,1,1,1,1,1);
-float releaseenvel[FPS] = envel6_rapid_out(1,0.5,0.2,0,0,0);
+//float releaseenvel[FPS] = envel6_rapid_out(1,0.5,0.2,0,0,0);
+//float releaseenvel[FPS] = envel6_rapid_out(1,0.2,0,0,0,0);
+float releaseenvel[FPS] =
+  {
+    1,1,0.2,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,
+  };
 float pulsewidthenvel[3] = {0.5,0.5,0.5};
 
 /** Sustain **/
@@ -178,7 +192,7 @@ float vibphase = 0;
 #define VIBPLAYING ((curvibstate == PRESSED) || (curvibstate == STILLPRESSED))
 
 /** Effects **/
-#define MAXDROPFRAMES (FPS/3)
+#define MAXDROPFRAMES (FPS/2)
 int frames_drop = 0;
 float freqoffset_drop = 1;
 
@@ -241,10 +255,7 @@ void synthesise(void *buffer, unsigned int frames) {
       // amplitude or else the .wav file will corrupt, particularly at
       // low volumes.
       // I have ZERO idea why that is the case.
-      if (amplitude >= 0)
-        amplitude = 0;
-      else
-        amplitude *= 2;
+      amplitude -= MAXVOL;
       amplitude -= fmodf2(amplitude, 0.01);
       wavbuf[i] = amplitude;
     }
@@ -299,13 +310,61 @@ void update_curvol() {
 }
 
 void update_pitchbend() {
-  if (curstate == PRESSED)
+  if (curstate == PRESSED) {
+    frames_noscroll = 0;
+    scrolled = 0;
     freqoffset = 1;
+  }
   float dy = GetMouseWheelMove();
-  if (dy > 0)
+  if (dy > 0) {
     freqoffset *= pow(1.0194, dy);
-  else
+    scrolled = 1;
+  }
+  else if (dy < 0) {
     freqoffset /= pow(1.0194, -dy);
+    scrolled = 1;
+  }
+  else
+    frames_noscroll++;
+
+  if (frames_noscroll >= 5) {
+    frames_noscroll = 0;
+    // Do pitch bend correction so that final note is not
+    // out of tune
+    if (scrolled) {
+      // Sorry for messy code I'll fix this later I promise
+      // Upwards
+      if (sqrt(SEMITONE) < freqoffset &&
+          freqoffset < SEMITONE*sqrt(SEMITONE))
+        freqoffset = SEMITONE;
+      else if (SEMITONE*sqrt(SEMITONE) <= freqoffset &&
+               freqoffset < SEMITONE*SEMITONE*sqrt(SEMITONE))
+        freqoffset = SEMITONE*SEMITONE;
+      else if (SEMITONE*SEMITONE*sqrt(SEMITONE) <= freqoffset &&
+               freqoffset < SEMITONE*SEMITONE*SEMITONE*sqrt(SEMITONE))
+        freqoffset = SEMITONE*SEMITONE*SEMITONE;
+      else if (SEMITONE*SEMITONE*SEMITONE*sqrt(SEMITONE) <= freqoffset &&
+               freqoffset < SEMITONE*SEMITONE*SEMITONE*SEMITONE*sqrt(SEMITONE))
+        freqoffset = SEMITONE*SEMITONE*SEMITONE*SEMITONE;
+
+      // Downwards
+      else if (1.0/(SEMITONE*sqrt(SEMITONE)) <= freqoffset &&
+               freqoffset < 1.0/sqrt(SEMITONE))
+        freqoffset = 1.0/SEMITONE;
+      else if (1.0/(SEMITONE*SEMITONE*sqrt(SEMITONE)) <= freqoffset &&
+               freqoffset < 1.0/(SEMITONE*sqrt(SEMITONE)))
+        freqoffset = 1.0/(SEMITONE*SEMITONE);
+      else if (1.0/(SEMITONE*SEMITONE*SEMITONE*sqrt(SEMITONE)) <= freqoffset &&
+               freqoffset < 1.0/(SEMITONE*SEMITONE*sqrt(SEMITONE)))
+        freqoffset = 1.0/(SEMITONE*SEMITONE*SEMITONE);
+      else if (1.0/(SEMITONE*SEMITONE*SEMITONE*SEMITONE*sqrt(SEMITONE)) <= freqoffset &&
+               freqoffset < 1.0/(SEMITONE*SEMITONE*SEMITONE*sqrt(SEMITONE)))
+        freqoffset = 1.0/(SEMITONE*SEMITONE*SEMITONE*SEMITONE);
+
+      else
+        freqoffset = 1.0;
+    }
+  }
 }
 
 void update_gliss() {
@@ -613,7 +672,7 @@ void draw() {
 
 
 int main() {
-  InitWindow(NORMALWIDTH, NORMALHEIGHT, "my keyboard");
+  InitWindow(NORMALWIDTH, NORMALHEIGHT, "jankboard");
   InitAudioDevice();
   SetAudioStreamBufferSizeDefault(MAXSAMPLES_PER_UPDATE);
 
@@ -687,7 +746,7 @@ int main() {
       set_pulsewidthenvel(0.25,0.25,0.25);
     }
     else if (keypressed(E)) {
-      set_pulsewidthenvel(0.125,0.25,0.25);
+      set_pulsewidthenvel(0.125,0.125,0.125);
     }
 #undef set_pulsewidthenvel
 
