@@ -23,5 +23,3 @@ An instrument controlled by computer keyboard and mouse. Demo [here](https://www
 ## Notes
 
 - This is still in an early development stage, in particular some keyboard parameters like volume envelopes have to be modified directly in source code. I haven't thought of a user-friendly interface for modifying parameters.
-
-- I have an alternative version that uses joystick input, but I found out that joysticks are hard to perform with, so I'm too lazy to document it.
