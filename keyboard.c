@@ -1,3 +1,7 @@
+/**
+ * Copyright (c) 2023-2023 Way Yan Win
+ * This code is under the MIT License.
+ */
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
