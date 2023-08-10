@@ -12,5 +12,9 @@ OUT = keyboard
 CFLAGS += -L.
 endif
 
-all:
+all: executable
+debug: CFLAGS += -g
+debug: executable
+
+executable:
 	$(CC) keyboard.c tinywav/tinywav.c -o $(OUT) -Wall $(CFLAGS) $(LIBS)
