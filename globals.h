@@ -9,11 +9,6 @@
 #include "tinywav/tinywav.h"
 #include "util.h"
 
-/** Raylib macros **/
-#define keydown(key) (IsKeyDown(KEY_##key))
-#define keypressed(key) (IsKeyPressed(KEY_##key))
-#define mousedown(btn) (IsMouseButtonDown(MOUSE_BUTTON_##btn))
-
 /** Global settings **/
 #define NORMALWIDTH 1400
 #define NORMALHEIGHT 900

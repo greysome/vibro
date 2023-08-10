@@ -2,14 +2,14 @@
  * Copyright (c) 2023-2023 Way Yan Win
  * This code is under the MIT License.
  */
-#include <string.h>
-#include <stdio.h>
 #include <math.h>
-#include "tinywav/tinywav.h"
-#include "raylib.h"
+#include <stdio.h>
+#include <string.h>
 #include "globals.h"
-#include "util.h"
+#include "raylib.h"
 #include "synthesise.h"
+#include "tinywav/tinywav.h"
+#include "util.h"
 
 /**
   Functions to update the sound characteristics based on user
@@ -19,21 +19,22 @@ void update_notevol() {
   notevol += clamp(mousedx * 0.001, -0.01, 0.01);
   notevol = clamp(notevol, 0, 1);
 
-#define key2vol(key,vol) if (keydown(key)) {    \
-    notevol = vol;                              \
-    startnotevol = vol;                         \
+#define key2vol(key, vol) \
+  if (IsKeyDown(key)) {   \
+    notevol = vol;        \
+    startnotevol = vol;   \
   }
 
-  key2vol(ONE,0.1);
-  key2vol(TWO,0.2);
-  key2vol(THREE,0.3);
-  key2vol(FOUR,0.4);
-  key2vol(FIVE,0.5);
-  key2vol(SIX,0.6);
-  key2vol(SEVEN,0.7);
-  key2vol(EIGHT,0.8);
-  key2vol(NINE,0.9);
-  key2vol(ZERO,1.0);
+  key2vol(KEY_ONE, 0.1);
+  key2vol(KEY_TWO, 0.2);
+  key2vol(KEY_THREE, 0.3);
+  key2vol(KEY_FOUR, 0.4);
+  key2vol(KEY_FIVE, 0.5);
+  key2vol(KEY_SIX, 0.6);
+  key2vol(KEY_SEVEN, 0.7);
+  key2vol(KEY_EIGHT, 0.8);
+  key2vol(KEY_NINE, 0.9);
+  key2vol(KEY_ZERO, 1.0);
 #undef key2vol
 
   if (curstate == PRESSED && constvol)
@@ -42,13 +43,12 @@ void update_notevol() {
 
 void update_curvol() {
   if (PLAYING)
-    curvol = (frames_newnote <= FPS-1) ? \
-      notevol * attackenvel[frames_newnote] : \
-      notevol;
+    curvol = (frames_newnote <= FPS - 1) ? notevol * attackenvel[frames_newnote]
+                                         : notevol;
   else
-    curvol = (frames_releasenote <= FPS-1) ? \
-      notevol * releaseenvel[frames_releasenote] : \
-      0;
+    curvol = (frames_releasenote <= FPS - 1)
+                 ? notevol * releaseenvel[frames_releasenote]
+                 : 0;
 }
 
 void update_pitchbend() {
@@ -61,12 +61,10 @@ void update_pitchbend() {
   if (dy > 0) {
     freqoffset *= pow(1.0194, dy);
     scrolled = 1;
-  }
-  else if (dy < 0) {
+  } else if (dy < 0) {
     freqoffset /= pow(1.0194, -dy);
     scrolled = 1;
-  }
-  else
+  } else
     frames_noscroll++;
 
   if (frames_noscroll >= 5) {
@@ -76,32 +74,36 @@ void update_pitchbend() {
     if (scrolled) {
       // Sorry for messy code I'll fix this later I promise
       // Upwards
-      if (sqrt(SEMITONE) < freqoffset &&
-          freqoffset < SEMITONE*sqrt(SEMITONE))
+      if (sqrt(SEMITONE) < freqoffset && freqoffset < SEMITONE * sqrt(SEMITONE))
         freqoffset = SEMITONE;
-      else if (SEMITONE*sqrt(SEMITONE) <= freqoffset &&
-               freqoffset < SEMITONE*SEMITONE*sqrt(SEMITONE))
-        freqoffset = SEMITONE*SEMITONE;
-      else if (SEMITONE*SEMITONE*sqrt(SEMITONE) <= freqoffset &&
-               freqoffset < SEMITONE*SEMITONE*SEMITONE*sqrt(SEMITONE))
-        freqoffset = SEMITONE*SEMITONE*SEMITONE;
-      else if (SEMITONE*SEMITONE*SEMITONE*sqrt(SEMITONE) <= freqoffset &&
-               freqoffset < SEMITONE*SEMITONE*SEMITONE*SEMITONE*sqrt(SEMITONE))
-        freqoffset = SEMITONE*SEMITONE*SEMITONE*SEMITONE;
+      else if (SEMITONE * sqrt(SEMITONE) <= freqoffset &&
+               freqoffset < SEMITONE * SEMITONE * sqrt(SEMITONE))
+        freqoffset = SEMITONE * SEMITONE;
+      else if (SEMITONE * SEMITONE * sqrt(SEMITONE) <= freqoffset &&
+               freqoffset < SEMITONE * SEMITONE * SEMITONE * sqrt(SEMITONE))
+        freqoffset = SEMITONE * SEMITONE * SEMITONE;
+      else if (SEMITONE * SEMITONE * SEMITONE * sqrt(SEMITONE) <= freqoffset &&
+               freqoffset <
+                   SEMITONE * SEMITONE * SEMITONE * SEMITONE * sqrt(SEMITONE))
+        freqoffset = SEMITONE * SEMITONE * SEMITONE * SEMITONE;
 
       // Downwards
-      else if (1.0/(SEMITONE*sqrt(SEMITONE)) <= freqoffset &&
-               freqoffset < 1.0/sqrt(SEMITONE))
-        freqoffset = 1.0/SEMITONE;
-      else if (1.0/(SEMITONE*SEMITONE*sqrt(SEMITONE)) <= freqoffset &&
-               freqoffset < 1.0/(SEMITONE*sqrt(SEMITONE)))
-        freqoffset = 1.0/(SEMITONE*SEMITONE);
-      else if (1.0/(SEMITONE*SEMITONE*SEMITONE*sqrt(SEMITONE)) <= freqoffset &&
-               freqoffset < 1.0/(SEMITONE*SEMITONE*sqrt(SEMITONE)))
-        freqoffset = 1.0/(SEMITONE*SEMITONE*SEMITONE);
-      else if (1.0/(SEMITONE*SEMITONE*SEMITONE*SEMITONE*sqrt(SEMITONE)) <= freqoffset &&
-               freqoffset < 1.0/(SEMITONE*SEMITONE*SEMITONE*sqrt(SEMITONE)))
-        freqoffset = 1.0/(SEMITONE*SEMITONE*SEMITONE*SEMITONE);
+      else if (1.0 / (SEMITONE * sqrt(SEMITONE)) <= freqoffset &&
+               freqoffset < 1.0 / sqrt(SEMITONE))
+        freqoffset = 1.0 / SEMITONE;
+      else if (1.0 / (SEMITONE * SEMITONE * sqrt(SEMITONE)) <= freqoffset &&
+               freqoffset < 1.0 / (SEMITONE * sqrt(SEMITONE)))
+        freqoffset = 1.0 / (SEMITONE * SEMITONE);
+      else if (1.0 / (SEMITONE * SEMITONE * SEMITONE * sqrt(SEMITONE)) <=
+                   freqoffset &&
+               freqoffset < 1.0 / (SEMITONE * SEMITONE * sqrt(SEMITONE)))
+        freqoffset = 1.0 / (SEMITONE * SEMITONE * SEMITONE);
+      else if (1.0 / (SEMITONE * SEMITONE * SEMITONE * SEMITONE *
+                      sqrt(SEMITONE)) <=
+                   freqoffset &&
+               freqoffset <
+                   1.0 / (SEMITONE * SEMITONE * SEMITONE * sqrt(SEMITONE)))
+        freqoffset = 1.0 / (SEMITONE * SEMITONE * SEMITONE * SEMITONE);
 
       else
         freqoffset = 1.0;
@@ -123,7 +125,7 @@ void update_gliss() {
 }
 
 void update_effects() {
-  if (keypressed(LEFT_ALT) || keypressed(RIGHT_ALT))
+  if (IsKeyPressed(KEY_LEFT_ALT) || IsKeyPressed(KEY_RIGHT_ALT))
     frames_drop = 1;
 
   if (frames_drop > 0) {
@@ -131,8 +133,7 @@ void update_effects() {
       if (curstate == PRESSED) {
         frames_drop = 0;
         freqoffset_drop = 1;
-      }
-      else
+      } else
         freqoffset_drop *= 0.95;
     else {
       curstate = RELEASED;
@@ -141,7 +142,6 @@ void update_effects() {
     }
   }
 }
-
 
 void update_vib() {
   // Momentarily kill vibrato when a new note is pressed
@@ -157,7 +157,7 @@ void update_vib() {
   vibphase += vibspeed / FPS;
   prevvibstate = curvibstate;
 
-  if (keydown(SPACE))
+  if (IsKeyDown(KEY_SPACE))
     curvibstate = VIBPLAYING ? STILLPRESSED : PRESSED;
   else
     curvibstate = VIBPLAYING ? RELEASED : STILLRELEASED;
@@ -165,8 +165,7 @@ void update_vib() {
   if (!PREVVIBPLAYING && VIBPLAYING) {
     vibspeed = 1.0 / frames_betweenspace;
     frames_betweenspace = 0;
-  }
-  else {
+  } else {
     if (frames_betweenspace > 30) {
       // Make vibrato decay if not 'replenished'
       vibspeed *= 0.8;
@@ -183,36 +182,38 @@ void update_vib() {
     frames_onspace++;
 
   vibphase += vibspeed;
-  if (vibphase >= 1) vibphase = 0;
-  freqoffset3 = pow(vibdepth, sinf(vibphase*2*PI));
+  if (vibphase >= 1)
+    vibphase = 0;
+  freqoffset3 = pow(vibdepth, sinf(vibphase * 2 * PI));
 }
 
 void update_pulsewidth() {
-  curpulsewidth = pulsewidthenvel[min(frames_newnote,2)];
+  curpulsewidth = pulsewidthenvel[min(frames_newnote, 2)];
 }
 
 void update_wavetype() {
-  if (keypressed(MINUS))
+  if (IsKeyPressed(KEY_MINUS))
     wavetype = TRI;
-  if (keypressed(EQUAL))
+  if (IsKeyPressed(KEY_EQUAL))
     wavetype = SAW;
-  if (keypressed(BACKSPACE))
+  if (IsKeyPressed(KEY_BACKSPACE))
     wavetype = PULSE;
 }
 
 void update_octave() {
   if (sustain && curstate == STILLPRESSED)
     return;
-  if (keypressed(DOWN))
-      preoctave = clamp(preoctave-1, MINOCTAVE, MAXOCTAVE);
-  if (keypressed(UP))
-      preoctave = clamp(preoctave+1, MINOCTAVE, MAXOCTAVE);
+  if (IsKeyPressed(KEY_DOWN))
+    preoctave = clamp(preoctave - 1, MINOCTAVE, MAXOCTAVE);
+  if (IsKeyPressed(KEY_UP))
+    preoctave = clamp(preoctave + 1, MINOCTAVE, MAXOCTAVE);
 
-  if (mousedown(LEFT) && preoctave > MINOCTAVE)
+  if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && preoctave > MINOCTAVE)
     octaveoffset = -1;
-  else if (mousedown(RIGHT) && preoctave < MAXOCTAVE)
+  else if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT) && preoctave < MAXOCTAVE)
     octaveoffset = 1;
-  if (!mousedown(LEFT) && !mousedown(RIGHT))
+  if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT) &&
+      !IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
     octaveoffset = 0;
 
   octave = preoctave + octaveoffset;
@@ -222,24 +223,24 @@ void update_notetables() {
   for (int i = 0; i < NOTETABLE_SIZE; i++)
     notetable_prev[i] = notetable[i];
 
-#define key2note(key,note) notetable[note] = keydown(key)
-  key2note(Z,0);
-  key2note(S,1);
-  key2note(X,2);
-  key2note(D,3);
-  key2note(C,4);
-  key2note(V,5);
-  key2note(G,6);
-  key2note(B,7);
-  key2note(H,8);
-  key2note(N,9);
-  key2note(J,10);
-  key2note(M,11);
-  key2note(COMMA,12);
-  key2note(L,13);
-  key2note(PERIOD,14);
-  key2note(SEMICOLON,15);
-  key2note(SLASH,16);
+#define key2note(key, note) notetable[note] = IsKeyDown(key)
+  key2note(KEY_Z, 0);
+  key2note(KEY_S, 1);
+  key2note(KEY_X, 2);
+  key2note(KEY_D, 3);
+  key2note(KEY_C, 4);
+  key2note(KEY_V, 5);
+  key2note(KEY_G, 6);
+  key2note(KEY_B, 7);
+  key2note(KEY_H, 8);
+  key2note(KEY_N, 9);
+  key2note(KEY_J, 10);
+  key2note(KEY_M, 11);
+  key2note(KEY_COMMA, 12);
+  key2note(KEY_L, 13);
+  key2note(KEY_PERIOD, 14);
+  key2note(KEY_SEMICOLON, 15);
+  key2note(KEY_SLASH, 16);
 #undef key2note
 }
 
@@ -260,12 +261,11 @@ void update_notestates() {
       changed = 1;
       x = i;
       break;
-    }
-    else if (notetable_prev[i] == 1 && notetable[i] == 0)
+    } else if (notetable_prev[i] == 1 && notetable[i] == 0)
       changed = 1;
   }
 
-  if (keypressed(LEFT_CONTROL) || keypressed(RIGHT_CONTROL))
+  if (IsKeyPressed(KEY_LEFT_CONTROL) || IsKeyPressed(KEY_RIGHT_CONTROL))
     sustain = !sustain;
 
   if (changed) {
@@ -275,10 +275,9 @@ void update_notestates() {
       curstate = PRESSED;
       curnote = x;
     }
-  }
-  else if (!sustain) // If sustain, maintain previous state...
+  } else if (!sustain)  // If sustain, maintain previous state...
     curstate = (x == -1) ? STILLRELEASED : STILLPRESSED;
-  else if (sustain && (curstate == PRESSED)) // ...unless note was just pressed
+  else if (sustain && (curstate == PRESSED))  // ...unless note was just pressed
     curstate = STILLPRESSED;
 
   // Update frames
@@ -298,65 +297,63 @@ void setdisplaytxt() {
   int abs_note = curnote + octave * 12;
   int scaledegree = mod(abs_note, 12);
 
-#define scaledeg2txt(x,txt)                                    \
-  if (scaledegree == x) {                                      \
-    notetxt = TextFormat(txt"%d", octave + (curnote/12) + 4);  \
-  }                                                            \
+#define scaledeg2txt(x, txt)                                     \
+  if (scaledegree == x) {                                        \
+    notetxt = TextFormat(txt "%d", octave + (curnote / 12) + 4); \
+  }
 
-  scaledeg2txt(0,"C-");
-  scaledeg2txt(1,"C#");
-  scaledeg2txt(2,"D-");
-  scaledeg2txt(3,"D#");
-  scaledeg2txt(4,"E-");
-  scaledeg2txt(5,"F-");
-  scaledeg2txt(6,"F#");
-  scaledeg2txt(7,"G-");
-  scaledeg2txt(8,"G#");
-  scaledeg2txt(9,"A-");
-  scaledeg2txt(10,"A#");
-  scaledeg2txt(11,"B-");
+  scaledeg2txt(0, "C-");
+  scaledeg2txt(1, "C#");
+  scaledeg2txt(2, "D-");
+  scaledeg2txt(3, "D#");
+  scaledeg2txt(4, "E-");
+  scaledeg2txt(5, "F-");
+  scaledeg2txt(6, "F#");
+  scaledeg2txt(7, "G-");
+  scaledeg2txt(8, "G#");
+  scaledeg2txt(9, "A-");
+  scaledeg2txt(10, "A#");
+  scaledeg2txt(11, "B-");
 #undef scaledeg2txt
 
   if (octaveoffset == 1)
-    octavetxt = TextFormat("OCTAVE %d+1", preoctave+4);
+    octavetxt = TextFormat("OCTAVE %d+1", preoctave + 4);
   else if (octaveoffset == -1)
-    octavetxt = TextFormat("OCTAVE %d-1", preoctave+4);
+    octavetxt = TextFormat("OCTAVE %d-1", preoctave + 4);
   else
-    octavetxt = TextFormat("OCTAVE %d", preoctave+4);
+    octavetxt = TextFormat("OCTAVE %d", preoctave + 4);
 
-  voltxt = TextFormat("VOL %d%%", (int) (notevol*100));
+  voltxt = TextFormat("VOL %d%%", (int)(notevol * 100));
 }
 
 void drawwave() {
   if (curvol == 0) {
-    Vector2 start = {0, HEIGHT/2};
-    Vector2 end = {WIDTH, HEIGHT/2};
+    Vector2 start = {0, HEIGHT / 2};
+    Vector2 end = {WIDTH, HEIGHT / 2};
     DrawLineEx(start, end, 2, WHITE);
     return;
   }
 
   float dphase = CURFREQ / WAVEXSCALE;
-  float phase = fmodf2((float) GetTime(), WAVESPEED) / WAVESPEED;
+  float phase = fmodf2((float)GetTime(), WAVESPEED) / WAVESPEED;
   int y, y_;
   for (int i = 0; i < WIDTH; i += 2) {
     phase += dphase;
-    float nextphase = phase+dphase;
+    float nextphase = phase + dphase;
     if (nextphase >= 1)
       nextphase -= 1;
     if (wavetype == TRI) {
-      y = HEIGHT/2 - 100 * curvol * nes_tri(phase);
-      y_ = HEIGHT/2 - 100 * curvol * nes_tri(nextphase);
-    }
-    else if (wavetype == SAW) {
-      y = HEIGHT/2 - 100 * curvol * nes_saw(phase);
-      y_ = HEIGHT/2 - 100 * curvol * nes_saw(nextphase);
-    }
-    else if (wavetype == PULSE) {
-      y = HEIGHT/2 - 100 * curvol * nes_pulse(phase);
-      y_ = HEIGHT/2 - 100 * curvol * nes_pulse(nextphase);
+      y = HEIGHT / 2 - 100 * curvol * nes_tri(phase);
+      y_ = HEIGHT / 2 - 100 * curvol * nes_tri(nextphase);
+    } else if (wavetype == SAW) {
+      y = HEIGHT / 2 - 100 * curvol * nes_saw(phase);
+      y_ = HEIGHT / 2 - 100 * curvol * nes_saw(nextphase);
+    } else if (wavetype == PULSE) {
+      y = HEIGHT / 2 - 100 * curvol * nes_pulse(phase);
+      y_ = HEIGHT / 2 - 100 * curvol * nes_pulse(nextphase);
     }
     Vector2 start = {i, y};
-    Vector2 end = {i+2, y_};
+    Vector2 end = {i + 2, y_};
     DrawLineEx(start, end, 2, WHITE);
     if (phase >= 1)
       phase = fmodf(phase, 1.0);
@@ -369,15 +366,15 @@ void drawwave() {
 #define YSPACE 50
 #define DEFAULTFONT GetFontDefault()
 // Draw text with anchors at different corners
-#define DrawTextLL(text,x,_y,fontsize,color)                           \
-  DrawText(text, x, _y - MeasureTextEx(DEFAULTFONT,text,fontsize,0).y, \
-     fontsize, color)
-#define DrawTextLR(text,x,_y,fontsize,color)                  \
-  DrawText(text, x - MeasureText(text,fontsize),              \
-           _y - MeasureTextEx(DEFAULTFONT,text,fontsize,0).y, \
+#define DrawTextLL(text, x, _y, fontsize, color)                          \
+  DrawText(text, x, _y - MeasureTextEx(DEFAULTFONT, text, fontsize, 0).y, \
            fontsize, color)
-#define DrawTextUR(text,x,y,fontsize,color)                           \
-  DrawText(text, x - MeasureText(text,fontsize), y, fontsize, color)
+#define DrawTextLR(text, x, _y, fontsize, color)                           \
+  DrawText(text, x - MeasureText(text, fontsize),                          \
+           _y - MeasureTextEx(DEFAULTFONT, text, fontsize, 0).y, fontsize, \
+           color)
+#define DrawTextUR(text, x, y, fontsize, color) \
+  DrawText(text, x - MeasureText(text, fontsize), y, fontsize, color)
 
 void draw() {
   ClearBackground(DARKGRAY);
@@ -389,29 +386,24 @@ void draw() {
     DrawText("PULSE", XMARGIN, YMARGIN, FONTSIZE, WHITE);
 
   setdisplaytxt();
-  DrawText(octavetxt, XMARGIN, YMARGIN+YSPACE,
-           FONTSIZE, WHITE);
+  DrawText(octavetxt, XMARGIN, YMARGIN + YSPACE, FONTSIZE, WHITE);
   if (PLAYING)
-    DrawText(notetxt, XMARGIN, YMARGIN+2*YSPACE,
-             FONTSIZE, WHITE);
-  DrawTextLL(voltxt, XMARGIN, HEIGHT-YMARGIN, FONTSIZE, WHITE);
+    DrawText(notetxt, XMARGIN, YMARGIN + 2 * YSPACE, FONTSIZE, WHITE);
+  DrawTextLL(voltxt, XMARGIN, HEIGHT - YMARGIN, FONTSIZE, WHITE);
 
   if (sustain)
-    DrawTextLL("SUSTAIN", XMARGIN, HEIGHT-YMARGIN-YSPACE,
-               FONTSIZE, WHITE);
+    DrawTextLL("SUSTAIN", XMARGIN, HEIGHT - YMARGIN - YSPACE, FONTSIZE, WHITE);
   if (glisslock)
-    DrawTextLR("GLISS LOCK", WIDTH-XMARGIN, HEIGHT-YMARGIN,
-               FONTSIZE, WHITE);
+    DrawTextLR("GLISS LOCK", WIDTH - XMARGIN, HEIGHT - YMARGIN, FONTSIZE,
+               WHITE);
   if (constvol)
-    DrawTextLR("CONST VOL", WIDTH-XMARGIN, HEIGHT-YMARGIN-YSPACE,
+    DrawTextLR("CONST VOL", WIDTH - XMARGIN, HEIGHT - YMARGIN - YSPACE,
                FONTSIZE, WHITE);
   if (recording)
-    DrawTextUR("RECORDING", WIDTH-XMARGIN, YMARGIN,
-               FONTSIZE, WHITE);
+    DrawTextUR("RECORDING", WIDTH - XMARGIN, YMARGIN, FONTSIZE, WHITE);
 
   drawwave();
 }
-
 
 int main() {
   InitWindow(NORMALWIDTH, NORMALHEIGHT, "jankboard");
@@ -444,51 +436,45 @@ int main() {
     update_curvol();
     update_pulsewidth();
 
-    if (keypressed(LEFT_SHIFT))
+    if (IsKeyPressed(KEY_LEFT_SHIFT))
       constvol = !constvol;
 
-    if (keypressed(CAPS_LOCK))
+    if (IsKeyPressed(KEY_CAPS_LOCK))
       glisslock = !glisslock;
 
-    if (keypressed(GRAVE)) {
+    if (IsKeyPressed(KEY_GRAVE)) {
       if (!recording)
         tinywav_open_write(&tw,
-          1, // number of channels
-          SAMPLERATE,
-          TW_INT16,
-          TW_INLINE,
-          RECORDFILE
-        );
+                           1,  // number of channels
+                           SAMPLERATE, TW_INT16, TW_INLINE, RECORDFILE);
       else
         tinywav_close_write(&tw);
       recording = !recording;
     }
 
-    if (keypressed(TAB)) {
+    if (IsKeyPressed(KEY_TAB)) {
       if (IsWindowFullscreen()) {
         ToggleFullscreen();
         SetWindowSize(NORMALWIDTH, NORMALHEIGHT);
-      }
-      else {
+      } else {
         SetWindowSize(GetMonitorWidth(0), GetMonitorHeight(0));
         ToggleFullscreen();
       }
     }
 
-#define set_pulsewidthenvel(a,b,c) {            \
-      pulsewidthenvel[0] = a;                   \
-      pulsewidthenvel[1] = b;                   \
-      pulsewidthenvel[2] = c;                   \
-    }                                           \
+#define set_pulsewidthenvel(a, b, c) \
+  {                                  \
+    pulsewidthenvel[0] = a;          \
+    pulsewidthenvel[1] = b;          \
+    pulsewidthenvel[2] = c;          \
+  }
 
-    if (keypressed(Q) || keypressed(P)) {
-      set_pulsewidthenvel(0.5,0.5,0.5);
-    }
-    else if (keypressed(W)) {
-      set_pulsewidthenvel(0.25,0.25,0.25);
-    }
-    else if (keypressed(E)) {
-      set_pulsewidthenvel(0.125,0.125,0.125);
+    if (IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_P)) {
+      set_pulsewidthenvel(0.5, 0.5, 0.5);
+    } else if (IsKeyPressed(KEY_W)) {
+      set_pulsewidthenvel(0.25, 0.25, 0.25);
+    } else if (IsKeyPressed(KEY_E)) {
+      set_pulsewidthenvel(0.125, 0.125, 0.125);
     }
 #undef set_pulsewidthenvel
 
