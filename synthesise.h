@@ -38,9 +38,9 @@ void synthesise(void *buffer, unsigned int frames) {
     else if (wavetype == PULSE)
       amplitude = nes_pulse(curphase);
     // Scale it to match the actual amplitude for the output format
-    amplitude *= curvol * MAXVOL;
+    amplitude *= actualvol * MAXVOL;
     d[i] = (short) (amplitude * pow(2, BITDEPTH));
-    if (recording) {
+    if (isrecording) {
       // For some reason, these changes need to be made to the
       // amplitude or else the .wav file will corrupt, particularly at
       // low volumes.
@@ -50,12 +50,12 @@ void synthesise(void *buffer, unsigned int frames) {
       wavbuf[i] = amplitude;
     }
 
-    curphase += CURFREQ / SAMPLERATE;
+    curphase += ACTUALFREQ / SAMPLERATE;
     if (curphase >= 1)
       curphase = fmodf(curphase, 1.0);
   }
 
-  if (recording)
+  if (isrecording)
     tinywav_write_f(&tw, wavbuf, frames);
 }
 

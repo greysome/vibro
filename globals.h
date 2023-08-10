@@ -10,14 +10,25 @@
 #include "util.h"
 
 /** Global settings **/
-#define NORMALWIDTH 1400
-#define NORMALHEIGHT 900
-#define WIDTH GetScreenWidth()
-#define HEIGHT GetScreenHeight()
 #define FPS 60
+#define STARTINGWIDTH 1400
+#define STARTINGHEIGHT 900
+// These will be different from STARTINGWIDTH/HEIGHT if user goes to fullscreen
+// mode.
+int screenwidth;
+int screenheight;
+
+// For display text
+#define FONTSIZE 40
+#define XMARGIN 40
+#define YMARGIN 40
+#define YSPACE 50
+
+// For setting up Raylib audio
 #define MAXSAMPLES_PER_UPDATE 9192
 #define SAMPLERATE 96000
 #define BITDEPTH 16
+
 #define RECORDFILE "out.wav"
 #define MINOCTAVE -4
 #define MAXOCTAVE 2
@@ -36,9 +47,9 @@
 #define SEMITONE 1.05946
 // In Hz
 #define C4 261.6
-#define CURFREQ                                                              \
-  (C4 * pow(2, octave) * pow(SEMITONE, curnote) * freqoffset * freqoffset2 * \
-   freqoffset3 * freqoffset_drop)
+#define ACTUALFREQ                                                         \
+  (C4 * pow(2, actualoctave) * pow(SEMITONE, curnote) * freq_bend_factor * \
+   freq_gliss_factor * freq_vib_factor * freq_dive_factor)
 
 #define TRI 0
 #define SAW 1
@@ -46,58 +57,64 @@
 int wavetype = PULSE;
 // For pulse wave
 float curpulsewidth;
+// How far are we in the current cycle of the wave from 0 to 1?
+float curphase = 0.0;
 
 /** Note/frequency **/
 // The number of semitones above the C at the current octave.
 // Only changes when a new note is pressed.
 int curnote;
 // Fine-control of frequency via the mousewheel. For pitch bends.
-// Note freqoffset* is _multiplied_ in to get the final frequency.
-float freqoffset = 1;
-// Changing frequency via mouse movement. For glisses.
-float freqoffset2 = 1;
-int glisslock = 0;
+float freq_bend_factor = 1;
+// Changing frequency via up-and-down mouse movement. For glisses.
+float freq_gliss_factor = 1;
 // Changing frequency via space bar. For vibrato.
-float freqoffset3 = 1;
+float freq_vib_factor = 1;
+// Changing frequency from the dive effect.
+float freq_dive_factor = 1;
 
-// Pitch bend variables to do pitch correction
+// Gliss lock means that moving mouse up and down doesn't perform a glissando.
+// Useful because it is hard to change volume (left-and-right movement) without
+// moving mouse up-and-down too.
+int isglisslock = 0;
+
+/* Pitch bend variables to do pitch correction. */
+// Number of frames that user hasn't scrolled. Used to determine when to snap
+// the pitch bend to the nearest semitone.
 int frames_noscroll = 0;
-int scrolled = 0;
+int isscrolling = 0;
 
 // There are two ways to change the octave, via the up and down
 // arrow keys and via left and right mouse clicks.
-// The former method changes preoctave, whereas the latter
-// changes octaveoffset. Thus the final octave is computed as
-// preoctave + octaveoffset.
+// The former method sets `globaloctave`, whereas the latter
+// changes `octaveoffset`. Thus the actual octave being played
+// is computed as `globaloctave + octaveoffset`.
 // C4 is considered to be octave 0.
-int preoctave = 0;
+int globaloctave = 0;
 int octaveoffset = 0;
-int octave;
-
-// How far are we in the current cycle of the wave from 0 to 1?
-float curphase = 0.0;
+int actualoctave = 0;
 
 /** Volume **/
-// Volume of note when held, ignoring attacks and releases,
-// as a proportion of MAXVOL.
-// Can be controlled by the number keys on the keyboard.
-float notevol = 1.0;
-// Similar by notevol, but updates frame-by-frame according
-// to attacks and releases
-float curvol = 1.0;
+// Sustain volume (that is, ignoring attacks and releases), as a
+// proportion of MAXVOL.
+// This can be controlled by the number keys on the keyboard,
+// or by left-and-right mouse movement.
+float sustainvol = 1.0;
+// Updates frame-by-frame according to attacks and releases
+float actualvol = 1.0;
 // A setting that when enabled, always sets the volume to a fixed
 // level when a new note is pressed. (This fixed level can only be
 // changed with the volume control buttons 1 - 0.)
-int constvol = 0;
+int isconstvol = 0;
 // The aforementioned fixed level
-// In contrast, notevol can be changed via dynamic volume control
+// In contrast, sustainvol can be changed via dynamic volume control
 // (i.e. moving the mouse left and right).
 float startnotevol = 1.0;
 
 /** Volume envelopes **/
 // A volume envelope is hardcoded to have exactly 60 frames,
 // which is also the set FPS. Each entry represents a proportion
-// of notevol.
+// of sustainvol.
 #define envel6(a, b, c, d, e, f)                                               \
   {                                                                            \
     a, a, a, a, a, a, a, a, a, a, b, b, b, b, b, b, b, b, b, b, c, c, c, c, c, \
@@ -122,10 +139,8 @@ float startnotevol = 1.0;
 #define NOENVEL_IN envel6_rapid_in(1, 1, 1, 1, 1, 1)
 #define NOENVEL_OUT envel6_rapid_out(0, 0, 0, 0, 0, 0)
 
-// float attackenvel[FPS] = envel6_rapid_in(1.5,1.2,1.1,1,1,1);
+// TODO: devise a way to edit these in the program itself
 float attackenvel[FPS] = envel6_rapid_in(1, 1, 1, 1, 1, 1);
-// float releaseenvel[FPS] = envel6_rapid_out(1,0.5,0.2,0,0,0);
-// float releaseenvel[FPS] = envel6_rapid_out(1,0.2,0,0,0,0);
 float releaseenvel[FPS] = {
     1, 1, 0.2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -134,32 +149,38 @@ float releaseenvel[FPS] = {
 float pulsewidthenvel[3] = {0.5, 0.5, 0.5};
 
 /** Sustain **/
-int sustain = 0;  // Sustain current note?
+int issustain = 0;  // Sustain current note?
 
 /** Note press data */
 #define RELEASED 0
 #define STILLRELEASED 1
 #define PRESSED 2
 #define STILLPRESSED 3
-int curstate = STILLRELEASED;
-int prevstate;
-#define PLAYING ((curstate == PRESSED) || (curstate == STILLPRESSED))
+int curnotestate = STILLRELEASED;
+int prevnotestate;
+#define PLAYING ((curnotestate == PRESSED) || (curnotestate == STILLPRESSED))
 // Number of frames elapsed since the last note that was played
 // (including silence).
+// Used to determine `actualvol` for attack.
 int frames_newnote;
 // Number of frames elasped since note released.
+// Used to determine `actualvol` for release.
 int frames_releasenote;
 
-#define NOTETABLE_SIZE 17
-// Keeps track of which notes are pressed
-// Used to determine which note to play out, in the case
-// that multiple keys were pressed.
-short notetable[NOTETABLE_SIZE];
-short notetable_prev[NOTETABLE_SIZE];
+// The keyboard spans a major tenth, C to E
+#define KEYTABLE_SIZE 17
+// The keytable keeps track of which keys are pressed. It is
+// used to determine which note to play out, in the case that
+// multiple keys were pressed.
+short keytable[KEYTABLE_SIZE];
+short keytable_prev[KEYTABLE_SIZE];
 
 /** Vibrato **/
 int prevvibstate;
 int curvibstate = STILLRELEASED;
+// The two parameters that control vibrato: frequency and length of
+// pressing spacebar. The former controls speed and the latter controls
+// depth.
 int frames_onspace, frames_betweenspace;
 float vibspeed = 0, vibdepth = 1;
 float vibphase = 0;
@@ -168,9 +189,9 @@ float vibphase = 0;
 #define VIBPLAYING ((curvibstate == PRESSED) || (curvibstate == STILLPRESSED))
 
 /** Effects **/
-#define MAXDROPFRAMES (FPS / 2)
-int frames_drop = 0;
-float freqoffset_drop = 1;
+#define MAXDIVEFRAMES (FPS / 2)
+// The dive effect
+int frames_dive = 0;
 
 /** Text displays **/
 const char* notetxt;
@@ -179,7 +200,7 @@ const char* voltxt;
 
 /** Recording-related **/
 // Are we recording?
-int recording = 0;
+int isrecording = 0;
 // Struct to facilitate .wav output
 TinyWav tw;
 
@@ -190,10 +211,6 @@ TinyWav tw;
 float mousedx = 0;
 float mousedy = 0;
 
-#define FONTSIZE 40
-#define XMARGIN 40
-#define YMARGIN 40
-#define YSPACE 50
-#define DEFAULTFONT GetFontDefault()
+Font font;
 
 #endif
