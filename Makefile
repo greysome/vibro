@@ -1,11 +1,9 @@
-UNAME := $(shell uname)
-
-ifeq ($(UNAME),Windows_NT)
+ifeq ($(OS),Windows_NT)
 CC = x86_64-w64-mingw32-gcc
 LIBS = -lm -lraylib -lopengl32 -lgdi32 -lwinmm -lWs2_32
 OUT = keyboard.exe
 CFLAGS += -I. -L.
-else
+else  # either Linux or MacOS, but for now I only support the former
 CC = gcc
 LIBS = -lm -lraylib_linux
 OUT = keyboard
