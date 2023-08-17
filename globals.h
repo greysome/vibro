@@ -47,7 +47,6 @@ int screenheight;
 #define SEMITONE 1.05946
 // In Hz
 #define C4 261.6
-float actualfreq;
 
 #define TRI 0
 #define SAW 1
@@ -70,16 +69,19 @@ float freq_gliss_factor = 1;
 float freq_vib_factor = 1;
 // Changing frequency from the dive effect.
 float freq_dive_factor = 1;
+float actualfreq;
 
 /* Gliss variables */
-int prevmousedy = 0;
-int frames_toforcegliss = 0;
-float noteendfreq, newactualfreq;
-float glissstep;
 // Gliss lock means that moving mouse up and down doesn't perform a glissando.
 // Useful because it is hard to change volume (left-and-right movement) without
 // moving mouse up-and-down too.
 int isglisslock = 0;
+
+/* Autogliss variables */
+int prevmousedy = 0;
+int frames_toautogliss = 0;
+float autogliss_startfreq, autogliss_endfreq;
+float autogliss_freqstep;
 
 /* Pitch bend variables to do pitch correction. */
 // Number of frames that user hasn't scrolled. Used to determine when to snap

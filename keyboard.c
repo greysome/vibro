@@ -194,28 +194,37 @@ void update_vib() {
   freq_vib_factor = pow(vibdepth, sinf(vibphase * 2 * PI));
 }
 
-// TODO: document
 void update_actualfreq() {
+  // Autogliss is only activated when new note is pressed while glissing on the
+  // previous note
   if (ISLEGATO && prevmousedy) {
+    // Reset gliss; moving mouse vertically now does nothing until autogliss is
+    // complete
     freq_gliss_factor = 1;
-    noteendfreq = actualfreq;
-    newactualfreq = C4 * pow(2, actualoctave) * pow(SEMITONE, curnote);
-    frames_toforcegliss = (newactualfreq - noteendfreq) / (-prevmousedy) * 1.3;
-    float frac = newactualfreq / noteendfreq;
-    float semitones = logf(frac) / logf(SEMITONE);
-    frames_toforcegliss = clamp(frames_toforcegliss, 10, 20);
-    glissstep = powf(frac, 1.0 / frames_toforcegliss);
+    autogliss_startfreq = actualfreq;
+    // The frequency of the new note (without extras like pitch bend, vibrato,
+    // etc.)
+    autogliss_endfreq = C4 * pow(2, actualoctave) * pow(SEMITONE, curnote);
+
+    frames_toautogliss =
+        -abs(autogliss_endfreq - autogliss_startfreq) / prevmousedy * 1.3;
+    frames_toautogliss = clamp(frames_toautogliss, 10, 20);
+
+    float frac = autogliss_endfreq / autogliss_startfreq;
+    autogliss_freqstep = powf(frac, 1.0 / frames_toautogliss);
   }
-  if (frames_toforcegliss && curnotestate != RELEASED) {
-    actualfreq *= glissstep;
-    frames_toforcegliss--;
+  // If currently autoglissing
+  if (frames_toautogliss && curnotestate != RELEASED) {
+    actualfreq *= autogliss_freqstep;
+    frames_toautogliss--;
   } else {
-    frames_toforcegliss = 0;
+    frames_toautogliss = 0;
     actualfreq =
         (C4 * pow(2, actualoctave) * pow(SEMITONE, curnote) * freq_bend_factor *
          freq_gliss_factor * freq_vib_factor * freq_dive_factor);
   }
-  //idebug(noteendfreq, newactualfreq, frames_toforcegliss, glissstep, actualfreq);
+  // idebug(autogliss_startfreq, autogliss_endfreq, frames_toautogliss,
+  // autogliss_freqstep, actualfreq);
 }
 
 void update_pulsewidth() {
@@ -311,7 +320,8 @@ void update_notestates() {
     }
   } else if (!issustain)  // If issustain, maintain previous state...
     curnotestate = (x == -1) ? STILLRELEASED : STILLPRESSED;
-  else if (issustain && curnotestate == PRESSED)  // ...unless note was just pressed
+  else if (issustain &&
+           curnotestate == PRESSED)  // ...unless note was just pressed
     curnotestate = STILLPRESSED;
 
   // Update frames
@@ -462,7 +472,7 @@ int main() {
     update_keytables();
     update_octave();
     update_notestates();
-    if (frames_toforcegliss == 0) {
+    if (frames_toautogliss == 0) {
       update_pitchbend();
       update_effects();
       update_gliss();
