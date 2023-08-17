@@ -50,7 +50,7 @@ void synthesise(void *buffer, unsigned int frames) {
       wavbuf[i] = amplitude;
     }
 
-    curphase += ACTUALFREQ / SAMPLERATE;
+    curphase += actualfreq / SAMPLERATE;
     if (curphase >= 1)
       curphase = fmodf(curphase, 1.0);
   }

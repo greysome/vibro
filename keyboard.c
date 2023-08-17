@@ -5,6 +5,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include "debug.h"
 #include "globals.h"
 #include "raylib.h"
 #include "synthesise.h"
@@ -21,7 +22,7 @@ void update_notevol() {
 
 #define key2vol(key, vol) \
   if (IsKeyDown(key)) {   \
-    sustainvol = vol;        \
+    sustainvol = vol;     \
     startnotevol = vol;   \
   }
 
@@ -43,12 +44,13 @@ void update_notevol() {
 
 void update_actualvol() {
   if (PLAYING)
-    actualvol = (frames_newnote <= FPS - 1) ? sustainvol * attackenvel[frames_newnote]
-                                         : sustainvol;
+    actualvol = (frames_newnote <= FPS - 1)
+                    ? sustainvol * attackenvel[frames_newnote]
+                    : sustainvol;
   else
     actualvol = (frames_releasenote <= FPS - 1)
-                 ? sustainvol * releaseenvel[frames_releasenote]
-                 : 0;
+                    ? sustainvol * releaseenvel[frames_releasenote]
+                    : 0;
 }
 
 void update_pitchbend() {
@@ -116,14 +118,15 @@ void update_pitchbend() {
 }
 
 void update_gliss() {
+  prevmousedy = mousedy;
   if (curnotestate == PRESSED)
     freq_gliss_factor = 1;
   if (isglisslock)
     return;
-  float factor = 1.002;
+  float factor = 1.0002;
   if (mousedy > 0)
     freq_gliss_factor /= pow(factor, mousedy);
-  else
+  else if (mousedy < 0)
     freq_gliss_factor *= pow(factor, -mousedy);
   freq_gliss_factor = clamp(freq_gliss_factor, 0.5, 2);
 }
@@ -191,6 +194,39 @@ void update_vib() {
   freq_vib_factor = pow(vibdepth, sinf(vibphase * 2 * PI));
 }
 
+void update_actualfreq() {
+  // Autogliss is only activated when new note is pressed while glissing on the
+  // previous note
+  if (ISLEGATO && prevmousedy) {
+    // Reset gliss; moving mouse vertically now does nothing until autogliss is
+    // complete
+    freq_gliss_factor = 1;
+    autogliss_startfreq = actualfreq;
+    // The frequency of the new note (without extras like pitch bend, vibrato,
+    // etc.)
+    autogliss_endfreq = C4 * pow(2, actualoctave) * pow(SEMITONE, curnote);
+
+    frames_toautogliss =
+        -abs(autogliss_endfreq - autogliss_startfreq) / prevmousedy * 1.3;
+    frames_toautogliss = clamp(frames_toautogliss, 10, 20);
+
+    float frac = autogliss_endfreq / autogliss_startfreq;
+    autogliss_freqstep = powf(frac, 1.0 / frames_toautogliss);
+  }
+  // If currently autoglissing
+  if (frames_toautogliss && curnotestate != RELEASED) {
+    actualfreq *= autogliss_freqstep;
+    frames_toautogliss--;
+  } else {
+    frames_toautogliss = 0;
+    actualfreq =
+        (C4 * pow(2, actualoctave) * pow(SEMITONE, curnote) * freq_bend_factor *
+         freq_gliss_factor * freq_vib_factor * freq_dive_factor);
+  }
+  // idebug(autogliss_startfreq, autogliss_endfreq, frames_toautogliss,
+  // autogliss_freqstep, actualfreq);
+}
+
 void update_pulsewidth() {
   curpulsewidth = pulsewidthenvel[min(frames_newnote, 2)];
 }
@@ -205,6 +241,7 @@ void update_wavetype() {
 }
 
 void update_octave() {
+  prevactualoctave = actualoctave;
   if (issustain && curnotestate == STILLPRESSED)
     return;
   if (IsKeyPressed(KEY_DOWN))
@@ -251,6 +288,7 @@ void update_keytables() {
 void update_notestates() {
   prevnotestate = curnotestate;
   // Any change to the keytable?
+  // TODO: update comments
   int changed = 0;
   // A note that has remained pressed, to use as current note
   // in case some other note is released.
@@ -268,6 +306,7 @@ void update_notestates() {
     } else if (keytable_prev[i] == 1 && keytable[i] == 0)
       changed = 1;
   }
+  changed |= prevactualoctave != actualoctave;
 
   if (IsKeyPressed(KEY_LEFT_CONTROL) || IsKeyPressed(KEY_RIGHT_CONTROL))
     issustain = !issustain;
@@ -282,7 +321,7 @@ void update_notestates() {
   } else if (!issustain)  // If issustain, maintain previous state...
     curnotestate = (x == -1) ? STILLRELEASED : STILLPRESSED;
   else if (issustain &&
-           (curnotestate == PRESSED))  // ...unless note was just pressed
+           curnotestate == PRESSED)  // ...unless note was just pressed
     curnotestate = STILLPRESSED;
 
   // Update frames
@@ -339,7 +378,7 @@ void drawwave() {
     return;
   }
 
-  float dphase = ACTUALFREQ / WAVEXSCALE;
+  float dphase = actualfreq / WAVEXSCALE;
   float phase = fmodf2((float)GetTime(), WAVESPEED) / WAVESPEED;
   int y, y_;
   for (int i = 0; i < screenwidth; i += 2) {
@@ -431,12 +470,15 @@ int main() {
 
     update_wavetype();
     update_keytables();
-    update_notestates();
     update_octave();
-    update_pitchbend();
-    update_gliss();
-    update_effects();
-    update_vib();
+    update_notestates();
+    if (frames_toautogliss == 0) {
+      update_pitchbend();
+      update_effects();
+      update_gliss();
+      update_vib();
+    }
+    update_actualfreq();
     update_notevol();
     update_actualvol();
     update_pulsewidth();
