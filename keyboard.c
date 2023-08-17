@@ -169,22 +169,27 @@ void update_vib() {
   else
     curvibstate = VIBPLAYING ? RELEASED : STILLRELEASED;
 
+  // Just pressed space
   if (!PREVVIBPLAYING && VIBPLAYING) {
     vibspeed = 1.0 / frames_betweenspace;
     frames_betweenspace = 0;
   } else {
+    frames_betweenspace++;
     if (frames_betweenspace > 30) {
       // Make vibrato decay if not 'replenished'
-      vibspeed *= 0.8;
-      vibphase *= 0.8;
+      vibspeed = 0;
+      vibphase = 0;
+      freq_vib_factor += 0.2 * (1.0 - freq_vib_factor);
+      return;
     }
-    frames_betweenspace++;
   }
 
+  // Just released space
   if (PREVVIBPLAYING && !VIBPLAYING) {
     vibdepth = clamp(pow(1.003, frames_onspace), 1, 1.04);
     frames_onspace = 0;
   }
+  // Still pressing on space
   if (VIBPLAYING)
     frames_onspace++;
 
