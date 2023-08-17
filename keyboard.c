@@ -42,15 +42,46 @@ void update_notevol() {
     sustainvol = startnotevol;
 }
 
+/* Apply ADSR envelope to obtain actualvol */
 void update_actualvol() {
-  if (PLAYING)
-    actualvol = (frames_newnote <= FPS - 1)
-                    ? sustainvol * attackenvel[frames_newnote]
-                    : sustainvol;
-  else
-    actualvol = (frames_releasenote <= FPS - 1)
-                    ? sustainvol * releaseenvel[frames_releasenote]
-                    : 0;
+  if (curnotestate == PRESSED) {
+    attackpeakvol = attackpeak * sustainvol;
+    frames_into_sustain = 0;
+    ADSRstate = ATTACK;
+    // It is possible to set this to 0 instead, but it results in unpleasant
+    // popping noises when switching notes repeatedly
+    actualvol = attackpeakvol / (float)attackframes;
+  } else if (curnotestate == STILLPRESSED) {
+    if (ADSRstate == ATTACK) {
+      actualvol += attackpeakvol / (float)attackframes;
+      if (actualvol >= attackpeakvol) {
+        ADSRstate = DECAY;
+        actualvol = attackpeakvol;
+      }
+    } else if (ADSRstate == DECAY) {
+      actualvol -= (attackpeakvol - sustainvol) / (float)decayframes;
+      if (actualvol <= sustainvol) {
+        ADSRstate = SUSTAIN;
+        actualvol = sustainvol;
+      }
+    } else if (ADSRstate == SUSTAIN) {
+      frames_into_sustain++;
+      //actualvol = sustainvol * (1.0 - frames_into_sustain /
+      //(float)sustaindecayframes);
+      actualvol =
+          sustainvol * 1.0 /
+              (1 + expf(7.0 * frames_into_sustain / (float)sustaindecayframes -
+                        4));
+    }
+  } else if (curnotestate == RELEASED) {
+    ADSRstate = RELEASE;
+    releasepeak = actualvol;
+  } else if (curnotestate == STILLRELEASED) {
+    if (actualvol > 0)
+      actualvol -= releasepeak / (float)releasedecayframes;
+    else
+      actualvol = 0;
+  }
 }
 
 void update_pitchbend() {
@@ -169,22 +200,27 @@ void update_vib() {
   else
     curvibstate = VIBPLAYING ? RELEASED : STILLRELEASED;
 
+  // Just pressed space
   if (!PREVVIBPLAYING && VIBPLAYING) {
     vibspeed = 1.0 / frames_betweenspace;
     frames_betweenspace = 0;
   } else {
+    frames_betweenspace++;
     if (frames_betweenspace > 30) {
       // Make vibrato decay if not 'replenished'
-      vibspeed *= 0.8;
-      vibphase *= 0.8;
+      vibspeed = 0;
+      vibphase = 0;
+      freq_vib_factor += 0.2 * (1.0 - freq_vib_factor);
+      return;
     }
-    frames_betweenspace++;
   }
 
+  // Just released space
   if (PREVVIBPLAYING && !VIBPLAYING) {
     vibdepth = clamp(pow(1.003, frames_onspace), 1, 1.04);
     frames_onspace = 0;
   }
+  // Still pressing on space
   if (VIBPLAYING)
     frames_onspace++;
 
@@ -198,6 +234,8 @@ void update_actualfreq() {
   // Autogliss is only activated when new note is pressed while glissing on the
   // previous note
   if (ISLEGATO && prevmousedy) {
+    // We don't want to attack the new note
+    curnotestate = STILLPRESSED;
     // Reset gliss; moving mouse vertically now does nothing until autogliss is
     // complete
     freq_gliss_factor = 1;
@@ -223,12 +261,6 @@ void update_actualfreq() {
         (C4 * pow(2, actualoctave) * pow(SEMITONE, curnote) * freq_bend_factor *
          freq_gliss_factor * freq_vib_factor * freq_dive_factor);
   }
-  // idebug(autogliss_startfreq, autogliss_endfreq, frames_toautogliss,
-  // autogliss_freqstep, actualfreq);
-}
-
-void update_pulsewidth() {
-  curpulsewidth = pulsewidthenvel[min(frames_newnote, 2)];
 }
 
 void update_wavetype() {
@@ -242,7 +274,7 @@ void update_wavetype() {
 
 void update_octave() {
   prevactualoctave = actualoctave;
-  if (issustain && curnotestate == STILLPRESSED)
+  if (isholding && curnotestate == STILLPRESSED)
     return;
   if (IsKeyPressed(KEY_DOWN))
     globaloctave = clamp(globaloctave - 1, MINOCTAVE, MAXOCTAVE);
@@ -309,31 +341,20 @@ void update_notestates() {
   changed |= prevactualoctave != actualoctave;
 
   if (IsKeyPressed(KEY_LEFT_CONTROL) || IsKeyPressed(KEY_RIGHT_CONTROL))
-    issustain = !issustain;
+    isholding = !isholding;
 
   if (changed) {
     if (x == -1)
-      curnotestate = issustain ? STILLPRESSED : RELEASED;
+      curnotestate = isholding ? STILLPRESSED : RELEASED;
     else {
       curnotestate = PRESSED;
       curnote = x;
     }
-  } else if (!issustain)  // If issustain, maintain previous state...
+  } else if (!isholding)  // If isholding, maintain previous state...
     curnotestate = (x == -1) ? STILLRELEASED : STILLPRESSED;
-  else if (issustain &&
+  else if (isholding &&
            curnotestate == PRESSED)  // ...unless note was just pressed
     curnotestate = STILLPRESSED;
-
-  // Update frames
-  if (curnotestate == PRESSED)
-    frames_newnote = 0;
-  else
-    frames_newnote++;
-
-  if (curnotestate != STILLRELEASED)
-    frames_releasenote = 0;
-  else
-    frames_releasenote++;
 }
 
 /** Drawing functions. **/
@@ -361,11 +382,11 @@ void setdisplaytxt() {
 #undef scaledeg2txt
 
   if (octaveoffset == 1)
-    octavetxt = TextFormat("OCTAVE %d+1", globaloctave + 4);
+    octavetxt = TextFormat("Octave %d+1", globaloctave + 4);
   else if (octaveoffset == -1)
-    octavetxt = TextFormat("OCTAVE %d-1", globaloctave + 4);
+    octavetxt = TextFormat("Octave %d-1", globaloctave + 4);
   else
-    octavetxt = TextFormat("OCTAVE %d", globaloctave + 4);
+    octavetxt = TextFormat("Octave %d", globaloctave + 4);
 
   voltxt = TextFormat("VOL %d%%", (int)(sustainvol * 100));
 }
@@ -374,7 +395,11 @@ void drawwave() {
   if (actualvol == 0) {
     Vector2 start = {0, screenheight / 2};
     Vector2 end = {screenwidth, screenheight / 2};
-    DrawLineEx(start, end, 2, WHITE);
+    // Shadow
+    DrawLineEx((Vector2){0, screenheight / 2 + 3},
+               (Vector2){screenwidth, screenheight / 2 + 3}, 3, BLACK);
+    // Actual
+    DrawLineEx(start, end, 3, WHITE);
     return;
   }
 
@@ -398,6 +423,9 @@ void drawwave() {
     }
     Vector2 start = {i, y};
     Vector2 end = {i + 2, y_};
+    // Shadow
+    DrawLineEx((Vector2){i + 3, y + 2}, (Vector2){i + 5, y_ + 2}, 2, BLACK);
+    // Actual
     DrawLineEx(start, end, 2, WHITE);
     if (phase >= 1)
       phase = fmodf(phase, 1.0);
@@ -415,31 +443,67 @@ void drawwave() {
   DrawText(text, x - MeasureText(text, fontsize), y, fontsize, color)
 
 void draw() {
-  ClearBackground(DARKGRAY);
-  if (wavetype == TRI)
-    DrawText("NES TRI", XMARGIN, YMARGIN, FONTSIZE, WHITE);
-  else if (wavetype == SAW)
-    DrawText("NES SAW", XMARGIN, YMARGIN, FONTSIZE, WHITE);
-  else if (wavetype == PULSE)
-    DrawText("PULSE", XMARGIN, YMARGIN, FONTSIZE, WHITE);
+  ClearBackground((Color){64, 82, 74, 255});
 
   setdisplaytxt();
-  DrawText(octavetxt, XMARGIN, YMARGIN + YSPACE, FONTSIZE, WHITE);
-  if (PLAYING)
-    DrawText(notetxt, XMARGIN, YMARGIN + 2 * YSPACE, FONTSIZE, WHITE);
-  DrawTextLL(voltxt, XMARGIN, screenheight - YMARGIN, FONTSIZE, WHITE);
+  switch (wavetype) {
+    case PULSE:
+      DrawTextureEx(texture_pulsewave, (Vector2){XMARGIN, YMARGIN + 5}, 0.0,
+                    0.5, WHITE);
+      break;
+    case TRI:
+      DrawTextureEx(texture_triwave, (Vector2){XMARGIN, YMARGIN + 5}, 0.0, 0.5,
+                    WHITE);
+      break;
+    case SAW:
+      DrawTextureEx(texture_sawwave, (Vector2){XMARGIN, YMARGIN + 5}, 0.0, 0.5,
+                    WHITE);
+      break;
+  }
 
-  if (issustain)
-    DrawTextLL("SUSTAIN", XMARGIN, screenheight - YMARGIN - YSPACE, FONTSIZE,
-               WHITE);
-  if (isglisslock)
-    DrawTextLR("GLISS LOCK", screenwidth - XMARGIN, screenheight - YMARGIN,
-               FONTSIZE, WHITE);
-  if (isconstvol)
-    DrawTextLR("CONST VOL", screenwidth - XMARGIN,
-               screenheight - YMARGIN - YSPACE, FONTSIZE, WHITE);
-  if (isrecording)
-    DrawTextUR("RECORDING", screenwidth - XMARGIN, YMARGIN, FONTSIZE, WHITE);
+  // TODO: separate function for drawing shadows
+  DrawText(octavetxt, XMARGIN + 73, YMARGIN + 3, FONTSIZE, BLACK);
+  DrawText(octavetxt, XMARGIN + 70, YMARGIN, FONTSIZE, WHITE);
+  if (PLAYING) {
+    DrawText(notetxt, XMARGIN + 73, YMARGIN + 23, FONTSIZE * 2, BLACK);
+    DrawText(notetxt, XMARGIN + 70, YMARGIN + 20, FONTSIZE * 2, WHITE);
+  }
+
+  // Draw volume level
+  int x1 = XMARGIN + 190;
+  int x2 = XMARGIN + 350;
+  int y1 = YMARGIN + 10;
+  int y2 = YMARGIN + 50;
+  Vector2 v1 = {x1, y2};
+  Vector2 v2 = {x2, y2};
+  Vector2 v3 = {x2, y1};
+  // sustainvol^0.7 is taken so that the gray fill is visible at low volumes
+  int x3 = x1 + powf(sustainvol, 0.7) * (x2 - x1);
+  int y3 = y1 + (1.0 - powf(sustainvol, 0.7)) * (y2 - y1);
+  // Shadows
+  Vector2 v1_ = {x1 + 3, y2 + 3};
+  Vector2 v2_ = {x2 + 3, y2 + 3};
+  Vector2 v3_ = {x2 + 3, y1 + 3};
+  DrawLineEx(v1_, v2_, 3, BLACK);
+  DrawLineEx((Vector2){x2 + 3, y2 + 4}, (Vector2){x2 + 3, y1 - 2}, 3, BLACK);
+  DrawLineEx(v3_, v1_, 3, BLACK);
+  // Actual
+  DrawTriangle(v1, (Vector2){x3, y2}, (Vector2){x3, y3}, WHITE);
+  DrawLineEx(v1, v2, 3, WHITE);
+  DrawLineEx((Vector2){x2, y2 + 1}, (Vector2){x2, y1 - 1}, 3, WHITE);
+  DrawLineEx(v3, v1, 3, WHITE);
+
+  // if (issustain)
+  //   DrawTextLL("SUSTAIN", XMARGIN, screenheight - YMARGIN - YSPACE, FONTSIZE,
+  //              WHITE);
+  // if (isglisslock)
+  //   DrawTextLR("GLISS LOCK", screenwidth - XMARGIN, screenheight - YMARGIN,
+  //              FONTSIZE, WHITE);
+  // if (isconstvol)
+  //   DrawTextLR("CONST VOL", screenwidth - XMARGIN,
+  //              screenheight - YMARGIN - YSPACE, FONTSIZE, WHITE);
+  // if (isrecording)
+  //   DrawTextUR("RECORDING", screenwidth - XMARGIN, YMARGIN, FONTSIZE, WHITE);
 
   drawwave();
 }
@@ -456,6 +520,10 @@ int main() {
   DisableCursor();
   SetTargetFPS(FPS);
   font = GetFontDefault();
+
+  texture_pulsewave = LoadTexture("assets/pulsewave.png");
+  texture_triwave = LoadTexture("assets/triwave.png");
+  texture_sawwave = LoadTexture("assets/sawwave.png");
 
   while (!WindowShouldClose()) {
     screenwidth = GetScreenWidth();
@@ -481,7 +549,14 @@ int main() {
     update_actualfreq();
     update_notevol();
     update_actualvol();
-    update_pulsewidth();
+
+    if (IsKeyPressed(KEY_RIGHT_SHIFT)) {
+      if (cursorenabled)
+        DisableCursor();
+      else
+        EnableCursor();
+      cursorenabled = !cursorenabled;
+    }
 
     if (IsKeyPressed(KEY_LEFT_SHIFT))
       isconstvol = !isconstvol;
@@ -508,22 +583,6 @@ int main() {
         ToggleFullscreen();
       }
     }
-
-#define set_pulsewidthenvel(a, b, c) \
-  {                                  \
-    pulsewidthenvel[0] = a;          \
-    pulsewidthenvel[1] = b;          \
-    pulsewidthenvel[2] = c;          \
-  }
-
-    if (IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_P)) {
-      set_pulsewidthenvel(0.5, 0.5, 0.5);
-    } else if (IsKeyPressed(KEY_W)) {
-      set_pulsewidthenvel(0.25, 0.25, 0.25);
-    } else if (IsKeyPressed(KEY_E)) {
-      set_pulsewidthenvel(0.125, 0.125, 0.125);
-    }
-#undef set_pulsewidthenvel
 
     BeginDrawing();
     draw();
