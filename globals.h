@@ -11,8 +11,8 @@
 
 /** Global settings **/
 #define FPS 60
-#define STARTINGWIDTH 1400
-#define STARTINGHEIGHT 900
+#define STARTINGWIDTH 1200
+#define STARTINGHEIGHT 700
 // These will be different from STARTINGWIDTH/HEIGHT if user goes to fullscreen
 // mode.
 int screenwidth;
@@ -47,9 +47,7 @@ int screenheight;
 #define SEMITONE 1.05946
 // In Hz
 #define C4 261.6
-#define ACTUALFREQ                                                         \
-  (C4 * pow(2, actualoctave) * pow(SEMITONE, curnote) * freq_bend_factor * \
-   freq_gliss_factor * freq_vib_factor * freq_dive_factor)
+float actualfreq;
 
 #define TRI 0
 #define SAW 1
@@ -73,6 +71,11 @@ float freq_vib_factor = 1;
 // Changing frequency from the dive effect.
 float freq_dive_factor = 1;
 
+/* Gliss variables */
+int prevmousedy = 0;
+int frames_toforcegliss = 0;
+float noteendfreq, newactualfreq;
+float glissstep;
 // Gliss lock means that moving mouse up and down doesn't perform a glissando.
 // Useful because it is hard to change volume (left-and-right movement) without
 // moving mouse up-and-down too.
@@ -93,6 +96,7 @@ int isscrolling = 0;
 int globaloctave = 0;
 int octaveoffset = 0;
 int actualoctave = 0;
+int prevactualoctave;
 
 /** Volume **/
 // Sustain volume (that is, ignoring attacks and releases), as a
@@ -158,6 +162,7 @@ int issustain = 0;  // Sustain current note?
 #define STILLPRESSED 3
 int curnotestate = STILLRELEASED;
 int prevnotestate;
+#define ISLEGATO ((curnotestate == PRESSED) && (prevnotestate == STILLPRESSED))
 #define PLAYING ((curnotestate == PRESSED) || (curnotestate == STILLPRESSED))
 // Number of frames elapsed since the last note that was played
 // (including silence).
