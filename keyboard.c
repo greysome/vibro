@@ -42,15 +42,45 @@ void update_notevol() {
     sustainvol = startnotevol;
 }
 
+/* Apply ADSR envelope to obtain actualvol */
 void update_actualvol() {
-  if (PLAYING)
-    actualvol = (frames_newnote <= FPS - 1)
-                    ? sustainvol * attackenvel[frames_newnote]
-                    : sustainvol;
-  else
-    actualvol = (frames_releasenote <= FPS - 1)
-                    ? sustainvol * releaseenvel[frames_releasenote]
-                    : 0;
+  if (curnotestate == PRESSED) {
+    ADSRstate = ATTACK;
+    actualvol = 0;
+  }
+  else if (curnotestate == STILLPRESSED) {
+    float attackpeakvol = attackpeak * sustainvol;
+    if (ADSRstate == ATTACK) {
+      actualvol += attackpeakvol / (float) attackframes;
+      if (actualvol >= attackpeakvol) {
+        ADSRstate = DECAY;
+        actualvol = attackpeakvol;
+      }
+    }
+    else if (ADSRstate == DECAY) {
+      actualvol -= (attackpeakvol - sustainvol) / (float) decayframes;
+      if (actualvol <= sustainvol) {
+        ADSRstate = SUSTAIN;
+        actualvol = sustainvol;
+      }
+    }
+    else if (ADSRstate == SUSTAIN) {
+      actualvol -= sustainvol / (float) sustaindecayframes;
+      if (actualvol <= 0) {
+        ADSRstate = RELEASE;
+      }
+    }
+  }
+  else if (curnotestate == RELEASED) {
+    ADSRstate = RELEASE;
+    releasepeak = actualvol;
+  }
+  else if (curnotestate == STILLRELEASED) {
+    if (actualvol > 0)
+      actualvol -= releasepeak / (float) releasedecayframes;
+    else
+      actualvol = 0;
+  }
 }
 
 void update_pitchbend() {
@@ -232,10 +262,6 @@ void update_actualfreq() {
   // autogliss_freqstep, actualfreq);
 }
 
-void update_pulsewidth() {
-  curpulsewidth = pulsewidthenvel[min(frames_newnote, 2)];
-}
-
 void update_wavetype() {
   if (IsKeyPressed(KEY_MINUS))
     wavetype = TRI;
@@ -247,7 +273,7 @@ void update_wavetype() {
 
 void update_octave() {
   prevactualoctave = actualoctave;
-  if (issustain && curnotestate == STILLPRESSED)
+  if (isholding && curnotestate == STILLPRESSED)
     return;
   if (IsKeyPressed(KEY_DOWN))
     globaloctave = clamp(globaloctave - 1, MINOCTAVE, MAXOCTAVE);
@@ -314,18 +340,18 @@ void update_notestates() {
   changed |= prevactualoctave != actualoctave;
 
   if (IsKeyPressed(KEY_LEFT_CONTROL) || IsKeyPressed(KEY_RIGHT_CONTROL))
-    issustain = !issustain;
+    isholding = !isholding;
 
   if (changed) {
     if (x == -1)
-      curnotestate = issustain ? STILLPRESSED : RELEASED;
+      curnotestate = isholding ? STILLPRESSED : RELEASED;
     else {
       curnotestate = PRESSED;
       curnote = x;
     }
-  } else if (!issustain)  // If issustain, maintain previous state...
+  } else if (!isholding)  // If issustain, maintain previous state...
     curnotestate = (x == -1) ? STILLRELEASED : STILLPRESSED;
-  else if (issustain &&
+  else if (isholding &&
            curnotestate == PRESSED)  // ...unless note was just pressed
     curnotestate = STILLPRESSED;
 
@@ -533,7 +559,6 @@ int main() {
     update_actualfreq();
     update_notevol();
     update_actualvol();
-    update_pulsewidth();
 
     if (IsKeyPressed(KEY_RIGHT_SHIFT)) {
       if (cursorenabled)
@@ -568,22 +593,6 @@ int main() {
         ToggleFullscreen();
       }
     }
-
-#define set_pulsewidthenvel(a, b, c) \
-  {                                  \
-    pulsewidthenvel[0] = a;          \
-    pulsewidthenvel[1] = b;          \
-    pulsewidthenvel[2] = c;          \
-  }
-
-    if (IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_P)) {
-      set_pulsewidthenvel(0.5, 0.5, 0.5);
-    } else if (IsKeyPressed(KEY_W)) {
-      set_pulsewidthenvel(0.25, 0.25, 0.25);
-    } else if (IsKeyPressed(KEY_E)) {
-      set_pulsewidthenvel(0.125, 0.125, 0.125);
-    }
-#undef set_pulsewidthenvel
 
     BeginDrawing();
     draw();
