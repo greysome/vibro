@@ -17,12 +17,14 @@
 // mode.
 int screenwidth;
 int screenheight;
+bool cursorenabled = false;
 
 // For display text
-#define FONTSIZE 40
-#define XMARGIN 40
-#define YMARGIN 40
-#define YSPACE 50
+#define FONTSIZE 20
+#define XMARGIN 20
+#define YMARGIN 20
+
+Texture2D texture_pulsewave, texture_triwave, texture_sawwave;
 
 // For setting up Raylib audio
 #define MAXSAMPLES_PER_UPDATE 9192

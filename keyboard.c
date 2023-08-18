@@ -366,11 +366,11 @@ void setdisplaytxt() {
 #undef scaledeg2txt
 
   if (octaveoffset == 1)
-    octavetxt = TextFormat("OCTAVE %d+1", globaloctave + 4);
+    octavetxt = TextFormat("Octave %d+1", globaloctave + 4);
   else if (octaveoffset == -1)
-    octavetxt = TextFormat("OCTAVE %d-1", globaloctave + 4);
+    octavetxt = TextFormat("Octave %d-1", globaloctave + 4);
   else
-    octavetxt = TextFormat("OCTAVE %d", globaloctave + 4);
+    octavetxt = TextFormat("Octave %d", globaloctave + 4);
 
   voltxt = TextFormat("VOL %d%%", (int)(sustainvol * 100));
 }
@@ -379,7 +379,11 @@ void drawwave() {
   if (actualvol == 0) {
     Vector2 start = {0, screenheight / 2};
     Vector2 end = {screenwidth, screenheight / 2};
-    DrawLineEx(start, end, 2, WHITE);
+    // Shadow
+    DrawLineEx((Vector2){0, screenheight / 2 + 3},
+               (Vector2){screenwidth, screenheight / 2 + 3}, 3, BLACK);
+    // Actual
+    DrawLineEx(start, end, 3, WHITE);
     return;
   }
 
@@ -403,6 +407,9 @@ void drawwave() {
     }
     Vector2 start = {i, y};
     Vector2 end = {i + 2, y_};
+    // Shadow
+    DrawLineEx((Vector2){i + 3, y + 2}, (Vector2){i + 5, y_ + 2}, 2, BLACK);
+    // Actual
     DrawLineEx(start, end, 2, WHITE);
     if (phase >= 1)
       phase = fmodf(phase, 1.0);
@@ -420,31 +427,67 @@ void drawwave() {
   DrawText(text, x - MeasureText(text, fontsize), y, fontsize, color)
 
 void draw() {
-  ClearBackground(DARKGRAY);
-  if (wavetype == TRI)
-    DrawText("NES TRI", XMARGIN, YMARGIN, FONTSIZE, WHITE);
-  else if (wavetype == SAW)
-    DrawText("NES SAW", XMARGIN, YMARGIN, FONTSIZE, WHITE);
-  else if (wavetype == PULSE)
-    DrawText("PULSE", XMARGIN, YMARGIN, FONTSIZE, WHITE);
+  ClearBackground((Color){64, 82, 74, 255});
 
   setdisplaytxt();
-  DrawText(octavetxt, XMARGIN, YMARGIN + YSPACE, FONTSIZE, WHITE);
-  if (PLAYING)
-    DrawText(notetxt, XMARGIN, YMARGIN + 2 * YSPACE, FONTSIZE, WHITE);
-  DrawTextLL(voltxt, XMARGIN, screenheight - YMARGIN, FONTSIZE, WHITE);
+  switch (wavetype) {
+    case PULSE:
+      DrawTextureEx(texture_pulsewave, (Vector2){XMARGIN, YMARGIN + 5}, 0.0,
+                    0.5, WHITE);
+      break;
+    case TRI:
+      DrawTextureEx(texture_triwave, (Vector2){XMARGIN, YMARGIN + 5}, 0.0, 0.5,
+                    WHITE);
+      break;
+    case SAW:
+      DrawTextureEx(texture_sawwave, (Vector2){XMARGIN, YMARGIN + 5}, 0.0, 0.5,
+                    WHITE);
+      break;
+  }
 
-  if (issustain)
-    DrawTextLL("SUSTAIN", XMARGIN, screenheight - YMARGIN - YSPACE, FONTSIZE,
-               WHITE);
-  if (isglisslock)
-    DrawTextLR("GLISS LOCK", screenwidth - XMARGIN, screenheight - YMARGIN,
-               FONTSIZE, WHITE);
-  if (isconstvol)
-    DrawTextLR("CONST VOL", screenwidth - XMARGIN,
-               screenheight - YMARGIN - YSPACE, FONTSIZE, WHITE);
-  if (isrecording)
-    DrawTextUR("RECORDING", screenwidth - XMARGIN, YMARGIN, FONTSIZE, WHITE);
+  // TODO: separate function for drawing shadows
+  DrawText(octavetxt, XMARGIN + 73, YMARGIN + 3, FONTSIZE, BLACK);
+  DrawText(octavetxt, XMARGIN + 70, YMARGIN, FONTSIZE, WHITE);
+  if (PLAYING) {
+    DrawText(notetxt, XMARGIN + 73, YMARGIN + 23, FONTSIZE * 2, BLACK);
+    DrawText(notetxt, XMARGIN + 70, YMARGIN + 20, FONTSIZE * 2, WHITE);
+  }
+
+  // Draw volume level
+  int x1 = XMARGIN + 190;
+  int x2 = XMARGIN + 350;
+  int y1 = YMARGIN + 10;
+  int y2 = YMARGIN + 50;
+  Vector2 v1 = {x1, y2};
+  Vector2 v2 = {x2, y2};
+  Vector2 v3 = {x2, y1};
+  // sustainvol^0.7 is taken so that the gray fill is visible at low volumes
+  int x3 = x1 + powf(sustainvol, 0.7) * (x2 - x1);
+  int y3 = y1 + (1.0 - powf(sustainvol, 0.7)) * (y2 - y1);
+  // Shadows
+  Vector2 v1_ = {x1 + 3, y2 + 3};
+  Vector2 v2_ = {x2 + 3, y2 + 3};
+  Vector2 v3_ = {x2 + 3, y1 + 3};
+  DrawLineEx(v1_, v2_, 3, BLACK);
+  DrawLineEx((Vector2){x2 + 3, y2 + 4}, (Vector2){x2 + 3, y1 - 2}, 3, BLACK);
+  DrawLineEx(v3_, v1_, 3, BLACK);
+  // Actual
+  DrawTriangle(v1, (Vector2){x3, y2}, (Vector2){x3, y3}, WHITE);
+  DrawLineEx(v1, v2, 3, WHITE);
+  DrawLineEx((Vector2){x2, y2 + 1}, (Vector2){x2, y1 - 1}, 3, WHITE);
+  DrawLineEx(v3, v1, 3, WHITE);
+
+  // if (issustain)
+  //   DrawTextLL("SUSTAIN", XMARGIN, screenheight - YMARGIN - YSPACE, FONTSIZE,
+  //              WHITE);
+  // if (isglisslock)
+  //   DrawTextLR("GLISS LOCK", screenwidth - XMARGIN, screenheight - YMARGIN,
+  //              FONTSIZE, WHITE);
+  // if (isconstvol)
+  //   DrawTextLR("CONST VOL", screenwidth - XMARGIN,
+  //              screenheight - YMARGIN - YSPACE, FONTSIZE, WHITE);
+  // if (isrecording)
+  //   DrawTextUR("RECORDING", screenwidth - XMARGIN, YMARGIN, FONTSIZE, WHITE);
 
   drawwave();
 }
@@ -461,6 +504,10 @@ int main() {
   DisableCursor();
   SetTargetFPS(FPS);
   font = GetFontDefault();
+
+  texture_pulsewave = LoadTexture("assets/pulsewave.png");
+  texture_triwave = LoadTexture("assets/triwave.png");
+  texture_sawwave = LoadTexture("assets/sawwave.png");
 
   while (!WindowShouldClose()) {
     screenwidth = GetScreenWidth();
@@ -487,6 +534,14 @@ int main() {
     update_notevol();
     update_actualvol();
     update_pulsewidth();
+
+    if (IsKeyPressed(KEY_RIGHT_SHIFT)) {
+      if (cursorenabled)
+        DisableCursor();
+      else
+        EnableCursor();
+      cursorenabled = !cursorenabled;
+    }
 
     if (IsKeyPressed(KEY_LEFT_SHIFT))
       isconstvol = !isconstvol;
