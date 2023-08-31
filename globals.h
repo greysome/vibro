@@ -108,7 +108,7 @@ int prevactualoctave;
 // or by left-and-right mouse movement.
 float sustainvol = 1.0;
 // Updates frame-by-frame according to ADSR envelope
-float actualvol = 1.0;
+float actualvol = 0.0;
 // A setting that when enabled, always sets sustainvol to a fixed
 // level when a new note is pressed. (This fixed level can only be
 // changed with the volume control buttons 1 - 0.)
@@ -124,10 +124,12 @@ float startnotevol = 1.0;
 #define SUSTAIN 2
 #define RELEASE 3
 int ADSRstate = RELEASE;
+int frames_into_sustain;
 int attackframes = 1;
-float attackpeak = 1.5;  // A proportion of sustainvol
-int decayframes = 10;
-int sustaindecayframes = 100;
+float attackpeak = 1;  // A proportion of sustainvol
+float attackpeakvol;
+int decayframes = 2;
+int sustaindecayframes = 2000;
 float releasepeak;  // Value of actualvol right when release starts
 int releasedecayframes = 5;
 
@@ -143,13 +145,6 @@ int curnotestate = STILLRELEASED;
 int prevnotestate;
 #define ISLEGATO ((curnotestate == PRESSED) && (prevnotestate == STILLPRESSED))
 #define PLAYING ((curnotestate == PRESSED) || (curnotestate == STILLPRESSED))
-// Number of frames elapsed since the last note that was played
-// (including silence).
-// Used to determine `actualvol` for attack.
-int frames_newnote;
-// Number of frames elasped since note released.
-// Used to determine `actualvol` for release.
-int frames_releasenote;
 
 // The keyboard spans a major tenth, C to E
 #define KEYTABLE_SIZE 17

@@ -45,39 +45,40 @@ void update_notevol() {
 /* Apply ADSR envelope to obtain actualvol */
 void update_actualvol() {
   if (curnotestate == PRESSED) {
+    attackpeakvol = attackpeak * sustainvol;
+    frames_into_sustain = 0;
     ADSRstate = ATTACK;
-    actualvol = 0;
-  }
-  else if (curnotestate == STILLPRESSED) {
-    float attackpeakvol = attackpeak * sustainvol;
+    // It is possible to set this to 0 instead, but it results in unpleasant
+    // popping noises when switching notes repeatedly
+    actualvol = attackpeakvol / (float)attackframes;
+  } else if (curnotestate == STILLPRESSED) {
     if (ADSRstate == ATTACK) {
-      actualvol += attackpeakvol / (float) attackframes;
+      actualvol += attackpeakvol / (float)attackframes;
       if (actualvol >= attackpeakvol) {
         ADSRstate = DECAY;
         actualvol = attackpeakvol;
       }
-    }
-    else if (ADSRstate == DECAY) {
-      actualvol -= (attackpeakvol - sustainvol) / (float) decayframes;
+    } else if (ADSRstate == DECAY) {
+      actualvol -= (attackpeakvol - sustainvol) / (float)decayframes;
       if (actualvol <= sustainvol) {
         ADSRstate = SUSTAIN;
         actualvol = sustainvol;
       }
+    } else if (ADSRstate == SUSTAIN) {
+      frames_into_sustain++;
+      //actualvol = sustainvol * (1.0 - frames_into_sustain /
+      //(float)sustaindecayframes);
+      actualvol =
+          sustainvol * 1.0 /
+              (1 + expf(7.0 * frames_into_sustain / (float)sustaindecayframes -
+                        4));
     }
-    else if (ADSRstate == SUSTAIN) {
-      actualvol -= sustainvol / (float) sustaindecayframes;
-      if (actualvol <= 0) {
-        ADSRstate = RELEASE;
-      }
-    }
-  }
-  else if (curnotestate == RELEASED) {
+  } else if (curnotestate == RELEASED) {
     ADSRstate = RELEASE;
     releasepeak = actualvol;
-  }
-  else if (curnotestate == STILLRELEASED) {
+  } else if (curnotestate == STILLRELEASED) {
     if (actualvol > 0)
-      actualvol -= releasepeak / (float) releasedecayframes;
+      actualvol -= releasepeak / (float)releasedecayframes;
     else
       actualvol = 0;
   }
@@ -233,6 +234,8 @@ void update_actualfreq() {
   // Autogliss is only activated when new note is pressed while glissing on the
   // previous note
   if (ISLEGATO && prevmousedy) {
+    // We don't want to attack the new note
+    curnotestate = STILLPRESSED;
     // Reset gliss; moving mouse vertically now does nothing until autogliss is
     // complete
     freq_gliss_factor = 1;
@@ -258,8 +261,6 @@ void update_actualfreq() {
         (C4 * pow(2, actualoctave) * pow(SEMITONE, curnote) * freq_bend_factor *
          freq_gliss_factor * freq_vib_factor * freq_dive_factor);
   }
-  // idebug(autogliss_startfreq, autogliss_endfreq, frames_toautogliss,
-  // autogliss_freqstep, actualfreq);
 }
 
 void update_wavetype() {
@@ -349,22 +350,11 @@ void update_notestates() {
       curnotestate = PRESSED;
       curnote = x;
     }
-  } else if (!isholding)  // If issustain, maintain previous state...
+  } else if (!isholding)  // If isholding, maintain previous state...
     curnotestate = (x == -1) ? STILLRELEASED : STILLPRESSED;
   else if (isholding &&
            curnotestate == PRESSED)  // ...unless note was just pressed
     curnotestate = STILLPRESSED;
-
-  // Update frames
-  if (curnotestate == PRESSED)
-    frames_newnote = 0;
-  else
-    frames_newnote++;
-
-  if (curnotestate != STILLRELEASED)
-    frames_releasenote = 0;
-  else
-    frames_releasenote++;
 }
 
 /** Drawing functions. **/
