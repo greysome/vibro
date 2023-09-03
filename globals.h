@@ -13,6 +13,10 @@
 #define FPS 60
 #define STARTINGWIDTH 1200
 #define STARTINGHEIGHT 700
+#define SUBGUI_BG     \
+  (Color) {         \
+    60, 75, 65, 255 \
+  }
 #define BG          \
   (Color) {         \
     64, 82, 74, 255 \

@@ -8,31 +8,19 @@
 #include "debug.h"
 #include "globals.h"
 #include "raylib.h"
+#include "subgui.h"
 #include "util.h"
 
-#define ADSR_X 20
-#define ADSR_BG     \
-  (Color) {         \
-    60, 75, 65, 255 \
-  }
-#define ADSR_Y (screenheight - 250)
-#define ADSR_W 500
-#define ADSR_H 150
-#define ADSR_M 30            // Margin
+SubGui subgui_adsr;
+
 #define ADSR_NODESIZE 10     // Size of node
-#define ADSR_FRAMESTEP 0.02  // How long is one frame from 0 to 1?
+#define ADSR_FRAMESTEP 0.02  // How much width in the GUI represents one frame?
 
-typedef struct {
-  float x;
-  float y;
-  bool pressed;
-} ADSRNode;
-
-ADSRNode node_start;
-ADSRNode node_attack;
-ADSRNode node_decay;
-ADSRNode node_sustain;
-ADSRNode node_release;
+RelativeCoords node_start;
+RelativeCoords node_attack;
+RelativeCoords node_decay;
+RelativeCoords node_sustain;
+RelativeCoords node_release;
 bool show_adsr = false;
 int adsr_hovered = 0;
 int adsr_selected = 0;
@@ -81,12 +69,14 @@ float node_sustain_y() {
                 (sx - dx) * (1.0 - dy) / sustaindecayframes / ADSR_FRAMESTEP);
 }
 
-void init_adsr_nodes() {
-  node_start = (ADSRNode){0.0, 1.0, false};
-  node_attack = (ADSRNode){ADSR_FRAMESTEP * attackframes, 0.0, false};
-  node_decay = (ADSRNode){node_decay_x(), node_decay_y(), false};
-  node_sustain = (ADSRNode){node_sustain_x(), node_sustain_y(), false};
-  node_release = (ADSRNode){1.0, 1.0, false};
+void init_adsr_subgui() {
+  subgui_adsr =
+      (SubGui){.x = 20, .y = screenheight - 250, .w = 500, .h = 150, .m = 30};
+  node_start = (RelativeCoords){0.0, 1.0};
+  node_attack = (RelativeCoords){ADSR_FRAMESTEP * attackframes, 0.0};
+  node_decay = (RelativeCoords){node_decay_x(), node_decay_y()};
+  node_sustain = (RelativeCoords){node_sustain_x(), node_sustain_y()};
+  node_release = (RelativeCoords){1.0, 1.0};
   node_attack.x = clamp(node_attack.x, 0, node_decay.x - ADSR_FRAMESTEP);
   node_decay.x = clamp(node_decay.x, node_attack.x + ADSR_FRAMESTEP,
                        node_sustain.x - ADSR_FRAMESTEP);
@@ -94,47 +84,34 @@ void init_adsr_nodes() {
                          1.0 - ADSR_FRAMESTEP);
 }
 
-ADSRNode coords_to_node(Vector2 v) {
-  float x = (v.x - (ADSR_X + ADSR_M)) / ADSR_W;
-  float y = (v.y - (ADSR_Y + ADSR_H)) / ADSR_H;
-  x = clamp(x, 0, 1);
-  y = clamp(y, 0, 1);
-  return (ADSRNode){x, y, false};
+bool hovering_on_node(RelativeCoords c) {
+  RelativeCoords d = absolute_to_relative(GetMousePosition(), subgui_adsr);
+  return within_subgui(GetMousePosition(), subgui_adsr) &&
+         square(c.x - d.x) + square(c.y - d.y) < square(0.05);
 }
 
-Vector2 node_to_coords(ADSRNode n) {
-  return (Vector2){ADSR_X + ADSR_M + n.x * (ADSR_W - 2 * ADSR_M),
-                   ADSR_Y + ADSR_M + n.y * (ADSR_H - 2 * ADSR_M)};
-}
-
-bool hovering_on_node(ADSRNode n) {
-  int x = GetMouseX();
-  int y = GetMouseY();
-  Vector2 v = node_to_coords(n);
-  return (x - v.x) * (x - v.x) + (y - v.y) * (y - v.y) <
-         ADSR_NODESIZE * ADSR_NODESIZE;
-}
-
-void draw_node(ADSRNode n, bool hovered) {
-  Vector2 v = node_to_coords(n);
+void draw_node(RelativeCoords c, bool hovered) {
+  Vector2 v = relative_to_absolute(c, subgui_adsr);
   DrawRectangle(v.x - ADSR_NODESIZE / 2 + 3, v.y - ADSR_NODESIZE / 2 + 3,
                 ADSR_NODESIZE, ADSR_NODESIZE, SHADOW);
   DrawRectangle(v.x - ADSR_NODESIZE / 2, v.y - ADSR_NODESIZE / 2, ADSR_NODESIZE,
-                ADSR_NODESIZE, hovered ? WHITE : ADSR_BG);
+                ADSR_NODESIZE, hovered ? WHITE : SUBGUI_BG);
   DrawRectangleLines(v.x - ADSR_NODESIZE / 2, v.y - ADSR_NODESIZE / 2,
                      ADSR_NODESIZE, ADSR_NODESIZE, WHITE);
 }
 
 void draw_adsr_gui() {
-  DrawRectangle(ADSR_X + 5, ADSR_Y + 5, ADSR_W, ADSR_H, SHADOW);
-  DrawRectangle(ADSR_X, ADSR_Y, ADSR_W, ADSR_H, ADSR_BG);
-  DrawRectangleLines(ADSR_X, ADSR_Y, ADSR_W, ADSR_H, WHITE);
+  draw_subgui_border(subgui_adsr);
 
   // TODO: Draw shadows as well
-  DrawLineV(node_to_coords(node_start), node_to_coords(node_attack), WHITE);
-  DrawLineV(node_to_coords(node_attack), node_to_coords(node_decay), WHITE);
-  DrawLineV(node_to_coords(node_decay), node_to_coords(node_sustain), WHITE);
-  DrawLineV(node_to_coords(node_sustain), node_to_coords(node_release), WHITE);
+  DrawLineV(relative_to_absolute(node_start, subgui_adsr),
+            relative_to_absolute(node_attack, subgui_adsr), WHITE);
+  DrawLineV(relative_to_absolute(node_attack, subgui_adsr),
+            relative_to_absolute(node_decay, subgui_adsr), WHITE);
+  DrawLineV(relative_to_absolute(node_decay, subgui_adsr),
+            relative_to_absolute(node_sustain, subgui_adsr), WHITE);
+  DrawLineV(relative_to_absolute(node_sustain, subgui_adsr),
+            relative_to_absolute(node_release, subgui_adsr), WHITE);
 
   if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
     if (hovering_on_node(node_attack))
@@ -150,20 +127,20 @@ void draw_adsr_gui() {
   if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
     adsr_selected = 0;
 
-  ADSRNode n = coords_to_node(GetMousePosition());
+  RelativeCoords c = absolute_to_relative(GetMousePosition(), subgui_adsr);
   if (adsr_selected == 1) {
-    node_attack.x = clamp(n.x, ADSR_FRAMESTEP, node_decay.x - ADSR_FRAMESTEP);
+    node_attack.x = clamp(c.x, ADSR_FRAMESTEP, node_decay.x - ADSR_FRAMESTEP);
     node_decay.y = clamp(node_decay.y, node_attack.y + 0.05, 0.75);
     node_sustain.y = clamp(node_sustain.y, node_decay.y, 1.0);
   } else if (adsr_selected == 2) {
-    node_decay.x = clamp(n.x, node_attack.x + ADSR_FRAMESTEP,
+    node_decay.x = clamp(c.x, node_attack.x + ADSR_FRAMESTEP,
                          node_sustain.x - ADSR_FRAMESTEP);
-    node_decay.y = clamp(n.y, node_attack.y + 0.05, 0.75);
+    node_decay.y = clamp(c.y, node_attack.y + 0.05, 0.75);
     node_sustain.y = clamp(node_sustain.y, node_decay.y, 1.0);
   } else if (adsr_selected == 3) {
-    node_sustain.x = clamp(n.x, node_decay.x + ADSR_FRAMESTEP,
+    node_sustain.x = clamp(c.x, node_decay.x + ADSR_FRAMESTEP,
                            node_release.x - ADSR_FRAMESTEP);
-    node_sustain.y = clamp(n.y, node_decay.y, 1.0);
+    node_sustain.y = clamp(c.y, node_decay.y, 1.0);
   }
 
   attackframes = to_attackframes();
