@@ -5,6 +5,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include "adsr.h"
 #include "debug.h"
 #include "globals.h"
 #include "raylib.h"
@@ -16,7 +17,7 @@
   Functions to update the sound characteristics based on user
   input.
 **/
-void update_notevol() {
+void update_sustainvol() {
   sustainvol += clamp(mousedx * 0.001, -0.01, 0.01);
   sustainvol = clamp(sustainvol, 0, 1);
 
@@ -65,13 +66,18 @@ void update_actualvol() {
         actualvol = sustainvol;
       }
     } else if (ADSRstate == SUSTAIN) {
+      idebug(sustainvol, sustaindecayframes);
       frames_into_sustain++;
-      //actualvol = sustainvol * (1.0 - frames_into_sustain /
-      //(float)sustaindecayframes);
       actualvol =
-          sustainvol * 1.0 /
-              (1 + expf(7.0 * frames_into_sustain / (float)sustaindecayframes -
-                        4));
+          sustainvol * (1.0 - frames_into_sustain / (float)sustaindecayframes);
+      if (actualvol <= 0) {
+        ADSRstate = RELEASE;
+        actualvol = 0;
+      }
+      // actualvol =
+      //     sustainvol * 1.0 /
+      //     (1 + expf(7.0 * frames_into_sustain / (float)sustaindecayframes -
+      //     4));
     }
   } else if (curnotestate == RELEASED) {
     ADSRstate = RELEASE;
@@ -391,7 +397,7 @@ void setdisplaytxt() {
   voltxt = TextFormat("VOL %d%%", (int)(sustainvol * 100));
 }
 
-void drawwave() {
+void draw_wave() {
   if (actualvol == 0) {
     Vector2 start = {0, screenheight / 2};
     Vector2 end = {screenwidth, screenheight / 2};
@@ -432,6 +438,62 @@ void drawwave() {
   }
 }
 
+void draw_wavetype_icon() {
+  // WAVE TYPE
+  bool hovering =
+      dist(GetMouseX(), GetMouseY(), XMARGIN + 20, YMARGIN + 23) < 400;
+  switch (wavetype) {
+    case PULSE:
+      if (hovering)
+        DrawTextureEx(texture_pulsewaveglow,
+                      (Vector2){XMARGIN - 9, YMARGIN - 1}, 0.0, 0.5, WHITE);
+      else
+        DrawTextureEx(texture_pulsewave, (Vector2){XMARGIN, YMARGIN + 5}, 0.0,
+                      0.5, WHITE);
+      break;
+    case TRI:
+      if (hovering)
+        DrawTextureEx(texture_triwaveglow, (Vector2){XMARGIN - 7, YMARGIN + 1},
+                      0.0, 0.5, WHITE);
+      else
+        DrawTextureEx(texture_triwave, (Vector2){XMARGIN, YMARGIN + 5}, 0.0,
+                      0.5, WHITE);
+      break;
+    case SAW:
+      if (hovering)
+        DrawTextureEx(texture_sawwaveglow, (Vector2){XMARGIN - 7, YMARGIN + 1},
+                      0.0, 0.5, WHITE);
+      else
+        DrawTextureEx(texture_sawwave, (Vector2){XMARGIN, YMARGIN + 5}, 0.0,
+                      0.5, WHITE);
+      break;
+  }
+
+  if (hovering && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    wavetype++;
+    if (wavetype >= 3)
+      wavetype = 0;
+  }
+}
+
+void draw_bottom_icons() {
+  bool hovering = dist(GetMouseX(), GetMouseY(), XMARGIN + 20,
+                       screenheight - YMARGIN - 23) < 400;
+  if (hovering)
+    DrawTextureEx(texture_adsrglow,
+                  (Vector2){XMARGIN - 7, screenheight - YMARGIN - 53}, 0.0, 0.5,
+                  WHITE);
+  else
+    DrawTextureEx(texture_adsr, (Vector2){XMARGIN, screenheight - YMARGIN - 50},
+                  0.0, 0.5, WHITE);
+
+  if (hovering && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    show_adsr = !show_adsr;
+    if (show_adsr)
+      init_adsr_nodes();
+  }
+}
+
 // Draw text with anchors at different corners
 #define DrawTextLL(text, x, _y, fontsize, color)                             \
   DrawText(text, x, _y - MeasureTextEx(font, text, fontsize, 0).y, fontsize, \
@@ -443,24 +505,14 @@ void drawwave() {
   DrawText(text, x - MeasureText(text, fontsize), y, fontsize, color)
 
 void draw() {
-  ClearBackground((Color){64, 82, 74, 255});
+  ClearBackground(BG);
 
+  draw_wave();
+  draw_wavetype_icon();
+  draw_bottom_icons();
+
+  // Draw octave and note text
   setdisplaytxt();
-  switch (wavetype) {
-    case PULSE:
-      DrawTextureEx(texture_pulsewave, (Vector2){XMARGIN, YMARGIN + 5}, 0.0,
-                    0.5, WHITE);
-      break;
-    case TRI:
-      DrawTextureEx(texture_triwave, (Vector2){XMARGIN, YMARGIN + 5}, 0.0, 0.5,
-                    WHITE);
-      break;
-    case SAW:
-      DrawTextureEx(texture_sawwave, (Vector2){XMARGIN, YMARGIN + 5}, 0.0, 0.5,
-                    WHITE);
-      break;
-  }
-
   // TODO: separate function for drawing shadows
   DrawText(octavetxt, XMARGIN + 73, YMARGIN + 3, FONTSIZE, BLACK);
   DrawText(octavetxt, XMARGIN + 70, YMARGIN, FONTSIZE, WHITE);
@@ -505,7 +557,8 @@ void draw() {
   // if (isrecording)
   //   DrawTextUR("RECORDING", screenwidth - XMARGIN, YMARGIN, FONTSIZE, WHITE);
 
-  drawwave();
+  if (show_adsr)
+    draw_adsr_gui();
 }
 
 int main() {
@@ -524,6 +577,11 @@ int main() {
   texture_pulsewave = LoadTexture("assets/pulsewave.png");
   texture_triwave = LoadTexture("assets/triwave.png");
   texture_sawwave = LoadTexture("assets/sawwave.png");
+  texture_pulsewaveglow = LoadTexture("assets/pulsewave_glow.png");
+  texture_triwaveglow = LoadTexture("assets/triwave_glow.png");
+  texture_sawwaveglow = LoadTexture("assets/sawwave_glow.png");
+  texture_adsr = LoadTexture("assets/adsr.png");
+  texture_adsrglow = LoadTexture("assets/adsr_glow.png");
 
   while (!WindowShouldClose()) {
     screenwidth = GetScreenWidth();
@@ -538,16 +596,20 @@ int main() {
 
     update_wavetype();
     update_keytables();
-    update_octave();
+    if (IsCursorHidden())
+      update_octave();
     update_notestates();
     if (frames_toautogliss == 0) {
-      update_pitchbend();
+      if (IsCursorHidden())
+        update_pitchbend();
       update_effects();
-      update_gliss();
+      if (IsCursorHidden())
+        update_gliss();
       update_vib();
     }
     update_actualfreq();
-    update_notevol();
+    if (IsCursorHidden())
+      update_sustainvol();
     update_actualvol();
 
     if (IsKeyPressed(KEY_RIGHT_SHIFT)) {
