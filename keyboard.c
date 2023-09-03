@@ -490,7 +490,7 @@ void draw_bottom_icons() {
   if (hovering && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
     show_adsr = !show_adsr;
     if (show_adsr)
-      init_adsr_nodes();
+      init_adsr_subgui();
   }
 }
 

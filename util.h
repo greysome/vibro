@@ -9,6 +9,7 @@
 
 #define dist(x1,y1,x2,y2) (((x1)-(x2))*((x1)-(x2))+((y1)-(y2))*((y1)-(y2)))
 #define min(a, b) ((a) < (b) ? (a) : (b))
+#define square(x) ((x)*(x))
 #define clamp(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
 #define abs(x) ((x) < 0 ? -(x) : (x))
 #define mod(a, b) (((a) % (b) < 0 ? (a) % (b) + (b) : (a) % (b)))
