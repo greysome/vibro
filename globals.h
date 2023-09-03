@@ -13,6 +13,14 @@
 #define FPS 60
 #define STARTINGWIDTH 1200
 #define STARTINGHEIGHT 700
+#define BG          \
+  (Color) {         \
+    64, 82, 74, 255 \
+  }
+#define SHADOW   \
+  (Color) {      \
+    0, 0, 0, 200 \
+  }
 // These will be different from STARTINGWIDTH/HEIGHT if user goes to fullscreen
 // mode.
 int screenwidth;
@@ -24,7 +32,11 @@ bool cursorenabled = false;
 #define XMARGIN 20
 #define YMARGIN 20
 
-Texture2D texture_pulsewave, texture_triwave, texture_sawwave;
+Texture2D texture_pulsewave, texture_triwave, texture_sawwave,
+    texture_pulsewaveglow, texture_triwaveglow, texture_sawwaveglow,
+    texture_adsr, texture_adsrglow;
+
+bool show_waves_menu;
 
 // For setting up Raylib audio
 #define MAXSAMPLES_PER_UPDATE 9192
@@ -126,10 +138,10 @@ float startnotevol = 1.0;
 int ADSRstate = RELEASE;
 int frames_into_sustain;
 int attackframes = 1;
-float attackpeak = 1;  // A proportion of sustainvol
+float attackpeak = 3;  // A proportion of sustainvol
 float attackpeakvol;
-int decayframes = 2;
-int sustaindecayframes = 2000;
+int decayframes = 5;
+int sustaindecayframes = 60;
 float releasepeak;  // Value of actualvol right when release starts
 int releasedecayframes = 5;
 
