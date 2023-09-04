@@ -100,7 +100,7 @@ void draw_node(RelativeCoords c, bool hovered) {
                      ADSR_NODESIZE, ADSR_NODESIZE, WHITE);
 }
 
-void draw_adsr_gui() {
+void draw_adsr_subgui() {
   draw_subgui_border(subgui_adsr);
 
   // TODO: Draw shadows as well

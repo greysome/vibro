@@ -5,6 +5,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include "addsynth.h"
 #include "adsr.h"
 #include "debug.h"
 #include "globals.h"
@@ -66,7 +67,6 @@ void update_actualvol() {
         actualvol = sustainvol;
       }
     } else if (ADSRstate == SUSTAIN) {
-      idebug(sustainvol, sustaindecayframes);
       frames_into_sustain++;
       actualvol =
           sustainvol * (1.0 - frames_into_sustain / (float)sustaindecayframes);
@@ -426,6 +426,9 @@ void draw_wave() {
     } else if (wavetype == PULSE) {
       y = screenheight / 2 - 100 * actualvol * nes_pulse(phase);
       y_ = screenheight / 2 - 100 * actualvol * nes_pulse(nextphase);
+    } else if (wavetype == SINE) {
+      y = screenheight / 2 - 100 * actualvol * add_synthesise(phase);
+      y_ = screenheight / 2 - 100 * actualvol * add_synthesise(nextphase);
     }
     Vector2 start = {i, y};
     Vector2 end = {i + 2, y_};
@@ -467,30 +470,56 @@ void draw_wavetype_icon() {
         DrawTextureEx(texture_sawwave, (Vector2){XMARGIN, YMARGIN + 5}, 0.0,
                       0.5, WHITE);
       break;
+    case SINE:
+      if (hovering)
+        DrawTextureEx(texture_sinewaveglow, (Vector2){XMARGIN - 7, YMARGIN - 3},
+                      0.0, 0.5, WHITE);
+      else
+        DrawTextureEx(texture_sinewave, (Vector2){XMARGIN, YMARGIN + 5},
+                      0.0, 0.5, WHITE);
   }
 
   if (hovering && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
     wavetype++;
-    if (wavetype >= 3)
+    if (wavetype >= 4)
       wavetype = 0;
   }
 }
 
 void draw_bottom_icons() {
-  bool hovering = dist(GetMouseX(), GetMouseY(), XMARGIN + 20,
-                       screenheight - YMARGIN - 23) < 400;
-  if (hovering)
+  bool hovering_adsr = dist(GetMouseX(), GetMouseY(), XMARGIN + 20,
+                            screenheight - YMARGIN - 23) < 400;
+  if (hovering_adsr) {
     DrawTextureEx(texture_adsrglow,
                   (Vector2){XMARGIN - 7, screenheight - YMARGIN - 53}, 0.0, 0.5,
                   WHITE);
-  else
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      show_adsr = !show_adsr;
+      show_addsynth = false;
+      if (show_adsr)
+        init_adsr_subgui();
+    }
+  } else
     DrawTextureEx(texture_adsr, (Vector2){XMARGIN, screenheight - YMARGIN - 50},
                   0.0, 0.5, WHITE);
 
-  if (hovering && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-    show_adsr = !show_adsr;
-    if (show_adsr)
-      init_adsr_subgui();
+  if (wavetype == SINE) {
+    bool hovering_addsynth = dist(GetMouseX(), GetMouseY(), XMARGIN + 100,
+                                  screenheight - YMARGIN - 23) < 400;
+    if (hovering_addsynth) {
+      DrawTextureEx(texture_addsynthglow,
+                    (Vector2){XMARGIN + 63, screenheight - YMARGIN - 57}, 0.0,
+                    0.5, WHITE);
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        show_addsynth = !show_addsynth;
+        show_adsr = false;
+        if (show_addsynth)
+          init_addsynth_subgui();
+      }
+    } else
+      DrawTextureEx(texture_addsynth,
+                    (Vector2){XMARGIN + 70, screenheight - YMARGIN - 50}, 0.0,
+                    0.5, WHITE);
   }
 }
 
@@ -558,7 +587,10 @@ void draw() {
   //   DrawTextUR("RECORDING", screenwidth - XMARGIN, YMARGIN, FONTSIZE, WHITE);
 
   if (show_adsr)
-    draw_adsr_gui();
+    draw_adsr_subgui();
+  if (show_addsynth) {
+    draw_addsynth_subgui();
+  }
 }
 
 int main() {
@@ -582,6 +614,10 @@ int main() {
   texture_sawwaveglow = LoadTexture("assets/sawwave_glow.png");
   texture_adsr = LoadTexture("assets/adsr.png");
   texture_adsrglow = LoadTexture("assets/adsr_glow.png");
+  texture_sinewave = LoadTexture("assets/sinewave.png");
+  texture_sinewaveglow = LoadTexture("assets/sinewave_glow.png");
+  texture_addsynth = LoadTexture("assets/addsynth.png");
+  texture_addsynthglow = LoadTexture("assets/addsynth_glow.png");
 
   while (!WindowShouldClose()) {
     screenwidth = GetScreenWidth();
