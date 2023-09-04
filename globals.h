@@ -13,7 +13,7 @@
 #define FPS 60
 #define STARTINGWIDTH 1200
 #define STARTINGHEIGHT 700
-#define SUBGUI_BG     \
+#define SUBGUI_BG   \
   (Color) {         \
     60, 75, 65, 255 \
   }
@@ -38,7 +38,8 @@ bool cursorenabled = false;
 
 Texture2D texture_pulsewave, texture_triwave, texture_sawwave,
     texture_pulsewaveglow, texture_triwaveglow, texture_sawwaveglow,
-    texture_adsr, texture_adsrglow;
+    texture_adsr, texture_adsrglow, texture_sinewave, texture_sinewaveglow,
+    texture_addsynth, texture_addsynthglow;
 
 bool show_waves_menu;
 
@@ -69,11 +70,18 @@ bool show_waves_menu;
 #define TRI 0
 #define SAW 1
 #define PULSE 2
-int wavetype = PULSE;
+#define SINE 3
+int wavetype = SINE;
 // For pulse wave
 float curpulsewidth = 0.5;
 // How far are we in the current cycle of the wave from 0 to 1?
 float curphase = 0.0;
+
+/** Additive synthesis **/
+#define NUM_HARMONICS 20
+float addsynth_coeffs[NUM_HARMONICS] = {
+    1,        0, 1.0 / 3,  0, 1.0 / 5,  0, 1.0 / 7,  0, 1.0 / 9, 0,
+    1.0 / 11, 0, 1.0 / 13, 0, 1.0 / 15, 0, 1.0 / 17, 0, 1.0 / 19};
 
 /** Note/frequency **/
 // The number of semitones above the C at the current octave.
