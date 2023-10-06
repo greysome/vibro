@@ -272,10 +272,12 @@ void update_actualfreq() {
 void update_wavetype() {
   if (IsKeyPressed(KEY_MINUS))
     wavetype = TRI;
-  if (IsKeyPressed(KEY_EQUAL))
+  else if (IsKeyPressed(KEY_EQUAL))
     wavetype = SAW;
-  if (IsKeyPressed(KEY_BACKSPACE))
+  else if (IsKeyPressed(KEY_BACKSPACE))
     wavetype = PULSE;
+  else if (IsKeyPressed(KEY_BACKSLASH))
+    wavetype = SINE;
 }
 
 void update_octave() {
