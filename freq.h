@@ -8,7 +8,8 @@
 #include "raylib.h"
 #include "globals.h"
 #include "debug.h"
-#include "keys.h"
+#include "note.h"
+#include "util.h"
 
 // Moving up a semitone increases the Hz by this factor
 #define SEMITONE 1.05946

@@ -3,11 +3,9 @@
  * This code is under the MIT License.
  */
 #include "gui.h"
-#include "freq.h"
-#include "globals.h"
 
 void display_note_text_solo_mode() {
-  if (!is_note_down()) return;
+  if (!is_any_note_playing()) return;
 
   int abs_note = get_cur_note() - 1 + get_cur_actual_octave() * 12;
   int scale_degree = mod(abs_note, 12);
@@ -15,7 +13,7 @@ void display_note_text_solo_mode() {
 
 #define match_scale_degree_with_text(n, text)                            \
   if (scale_degree == n)                                                  \
-    note_text = TextFormat(text "%d", get_cur_actual_octave() + get_note_octave_modifier() + 4)
+    note_text = TextFormat(text "%d", get_cur_actual_octave() + get_note_octave_modifier(get_cur_note()) + 4)
 
   match_scale_degree_with_text(0, "C-");
   match_scale_degree_with_text(1, "C#");
@@ -38,7 +36,7 @@ void display_note_text_solo_mode() {
 void display_note_text_chord_mode() {
   int notes_playing[6] = {-1, -1, -1, -1, -1, -1};
   int counter = 0;
-  for (int note = 0; note < KEYTABLE_SIZE; note++) {
+  for (int note = 0; note < NOTETABLE_SIZE; note++) {
     NoteState s = get_cur_note_states()[note];
     if (s == PRESSED || s == HELD) {
       notes_playing[counter++] = note;
@@ -48,7 +46,7 @@ void display_note_text_chord_mode() {
 
   int indices[6] = {0, 0, 0, 0, 0, 0};
   const char *notes_text_1, *notes_text_2;
-  char *note_labels[13] = {"", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+  const char *note_labels[13] = {"", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
   for (int i = 0; i < 6; i++) {
     int note = notes_playing[i];
     if (note == -1)
@@ -74,7 +72,7 @@ void display_note_text() {
 }
 
 void display_octave_text() {
-  int octave = get_global_octave() + get_note_octave_modifier();
+  int octave = get_global_octave() + get_note_octave_modifier(get_cur_note());
   int local_octave_modifier = get_local_octave_modifier();
   const char* octave_text;
   if (local_octave_modifier == 1)
@@ -89,20 +87,20 @@ void display_octave_text() {
 }
 
 static void DrawTextSE(char *text, int x, int y, int font_size, Color color) {
-  Vector2 text_dimens = MeasureTextEx(font, text, font_size, 0);
+  Vector2 text_dimens = MeasureTextEx(GetFontDefault(), text, font_size, 0);
   DrawText(text, x - text_dimens.x, y - text_dimens.y, font_size, color);
 }
 
 void display_mode_text() {
-  DrawTextSE("PLAY", screenwidth-XMARGIN+5, screenheight-YMARGIN-25, FONTSIZE*3, BLACK);
-  DrawTextSE("PLAY", screenwidth-XMARGIN, screenheight-YMARGIN-30, FONTSIZE*3, WHITE);
+  DrawTextSE("PLAY", screen_width-XMARGIN+5, screen_height-YMARGIN-25, FONTSIZE*3, BLACK);
+  DrawTextSE("PLAY", screen_width-XMARGIN, screen_height-YMARGIN-30, FONTSIZE*3, WHITE);
   if (is_chord_mode()) {
-    DrawTextSE("CHORDS", screenwidth-XMARGIN+3, screenheight-YMARGIN-7, FONTSIZE, BLACK);
-    DrawTextSE("CHORDS", screenwidth-XMARGIN, screenheight-YMARGIN-10, FONTSIZE, WHITE);
+    DrawTextSE("CHORDS", screen_width-XMARGIN+3, screen_height-YMARGIN-7, FONTSIZE, BLACK);
+    DrawTextSE("CHORDS", screen_width-XMARGIN, screen_height-YMARGIN-10, FONTSIZE, WHITE);
   }
   else {
-    DrawTextSE("SOLO", screenwidth-XMARGIN+3, screenheight-YMARGIN-7, FONTSIZE, BLACK);
-    DrawTextSE("SOLO", screenwidth-XMARGIN, screenheight-YMARGIN-10, FONTSIZE, WHITE);
+    DrawTextSE("SOLO", screen_width-XMARGIN+3, screen_height-YMARGIN-7, FONTSIZE, BLACK);
+    DrawTextSE("SOLO", screen_width-XMARGIN, screen_height-YMARGIN-10, FONTSIZE, WHITE);
   }
 }
 
@@ -136,11 +134,11 @@ void draw_volume_level() {
 
 void draw_wave() {
   if (is_silent()) {
-    Vector2 start = {0, screenheight / 2};
-    Vector2 end = {screenwidth, screenheight / 2};
+    Vector2 start = {0, screen_height / 2};
+    Vector2 end = {screen_width, screen_height / 2};
     // Shadow
-    DrawLineEx((Vector2){0, screenheight / 2 + 3},
-               (Vector2){screenwidth, screenheight / 2 + 3}, 3, BLACK);
+    DrawLineEx((Vector2){0, screen_height / 2 + 3},
+               (Vector2){screen_width, screen_height / 2 + 3}, 3, BLACK);
     // Actual
     DrawLineEx(start, end, 3, WHITE);
     return;
@@ -149,24 +147,24 @@ void draw_wave() {
   // TODO phase is a bad word, find a replacement
   float dphase = 1.0 / 30000.0;
   float start_phase = fmodf2((float)GetTime(), WAVESPEED) / WAVESPEED;
-  float phases[KEYTABLE_SIZE], next_phases[KEYTABLE_SIZE];
+  float phases[NOTETABLE_SIZE], next_phases[NOTETABLE_SIZE];
   float amplitude, next_amplitude;
   int y, next_y;
   float *cur_actual_freqs = get_cur_actual_freqs();
 
-  for (int note = 0; note < KEYTABLE_SIZE; note++)
+  for (int note = 0; note < NOTETABLE_SIZE; note++)
     next_phases[note] = start_phase;
   
-  for (int i = 0; i < screenwidth; i += 1) {
-    for (int note = 0; note < KEYTABLE_SIZE; note++) {
+  for (int i = 0; i < screen_width; i += 1) {
+    for (int note = 0; note < NOTETABLE_SIZE; note++) {
       phases[note] = next_phases[note];
       next_phases[note] += dphase * cur_actual_freqs[note];
       if (next_phases[note] > 1) next_phases[note] -= 1;
     }
     amplitude = get_amplitude(phases);
     next_amplitude = get_amplitude(next_phases);
-    y = screenheight / 2 - 300 * amplitude;
-    next_y = screenheight / 2 - 300 * next_amplitude;
+    y = screen_height / 2 - 300 * amplitude;
+    next_y = screen_height / 2 - 300 * next_amplitude;
 
     // Shadow
     Vector2 start_shadow = {i+3, y+2};

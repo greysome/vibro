@@ -3,14 +3,13 @@
  * This code is under the MIT License.
  */
 #include "volume.h"
-#include "keys.h"
 
 static float note_vol = 0.5;
 // Updates frame-by-frame according to ADSR envelope
-static float actual_vols[KEYTABLE_SIZE] = {0};
+static float actual_vols[NOTETABLE_SIZE] = {0};
 
 void update_note_vol() {
-  note_vol += clamp(mousedx * 0.001, -0.01, 0.01);
+  note_vol += clamp(mouse_dx * 0.001, -0.01, 0.01);
   note_vol = clamp(note_vol, 0, 1);
   if (is_chord_mode()) return;
 
@@ -31,14 +30,14 @@ void update_note_vol() {
 }
 
 void apply_adsr() {
-  static ADSRState adsr_states[KEYTABLE_SIZE] = {0};
+  static ADSRState adsr_states[NOTETABLE_SIZE] = {0};
   static int attack_frames = 1;
   static int decay_frames = 10;
   static float sustain_vol = 0.7; // A proportion of note_vol
   static int release_frames = 10;
-  static float release_peaks[KEYTABLE_SIZE] = {0};  // Value of actualvol right when release starts
+  static float release_peaks[NOTETABLE_SIZE] = {0};  // Value of actualvol right when release starts
 
-  for (int note = 0; note < KEYTABLE_SIZE; note++) {
+  for (int note = 0; note < NOTETABLE_SIZE; note++) {
     NoteState note_state = get_cur_note_states()[note];
 
     if (note_state == PRESSED) {
@@ -102,7 +101,7 @@ float *get_actual_vols() {
 }
 
 bool is_silent() {
-  for (int i = 0; i < KEYTABLE_SIZE; i++)
+  for (int i = 0; i < NOTETABLE_SIZE; i++)
     if (actual_vols[i] > 0)
       return false;
   return true;

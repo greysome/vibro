@@ -13,7 +13,6 @@
 #include "util.h"
 #include "globals.h"
 #include "synthesise.h"
-#include "input.h"
 #include "gui.h"
 
 void draw() {
@@ -25,27 +24,44 @@ void draw() {
   draw_volume_level();
 }
 
-int main() {
-  InitWindow(STARTINGWIDTH, STARTINGHEIGHT, "vibro");
-  InitAudioDevice();
-  SetAudioStreamBufferSizeDefault(MAXSAMPLES_PER_UPDATE);
+void process_keyboard_inputs() {
+  // Local/global octave needs to be updated BEFORE note state.
+  // This is because a change in octave will cause change in note state,
+  // even if the same key is being held.
+  update_global_octave();
+  update_local_octave_modifier();
+  update_note_state();
 
-  AudioStream stream = LoadAudioStream(SAMPLERATE, BITDEPTH, 1);
+  update_pitch_bend();
+  update_autogliss();
+  update_gliss();
+  update_effects();
+  update_vib();
+
+  update_note_vol();
+  apply_adsr();
+}
+
+int main() {
+  InitWindow(INITIAL_WIDTH, INITIAL_HEIGHT, "vibro");
+  InitAudioDevice();
+  SetAudioStreamBufferSizeDefault(MAX_SAMPLES_PER_UPDATE);
+
+  AudioStream stream = LoadAudioStream(SAMPLE_RATE, BIT_DEPTH, 1);
   SetAudioStreamCallback(stream, write_audio_samples);
   PlayAudioStream(stream);
 
   DisableCursor();
   SetTargetFPS(FPS);
-  font = GetFontDefault();
 
   while (!WindowShouldClose()) {
-    screenwidth = GetScreenWidth();
-    screenheight = GetScreenHeight();
+    screen_width = GetScreenWidth();
+    screen_height = GetScreenHeight();
 
-    mousedx = GetMouseDelta().x;
-    mousedy = GetMouseDelta().y;
-    if (abs(mousedx) >= abs(mousedy)) mousedy = 0;
-    else mousedx = 0;
+    mouse_dx = GetMouseDelta().x;
+    mouse_dy = GetMouseDelta().y;
+    if (abs(mouse_dx) >= abs(mouse_dy)) mouse_dy = 0;
+    else mouse_dx = 0;
 
     process_keyboard_inputs();
 
@@ -55,19 +71,17 @@ int main() {
     }
 
     if (IsKeyPressed(KEY_GRAVE)) {
-      if (!isrecording)
-        tinywav_open_write(&tw,
-                           1,  // number of channels
-                           SAMPLERATE, TW_INT16, TW_INLINE, RECORDFILE);
+      if (!is_recording)
+        tinywav_open_write(&tw, 1, SAMPLE_RATE, TW_INT16, TW_INLINE, RECORD_FILE);
       else
         tinywav_close_write(&tw);
-      isrecording = !isrecording;
+      is_recording = !is_recording;
     }
 
     if (IsKeyPressed(KEY_TAB)) {
       if (IsWindowFullscreen()) {
         ToggleFullscreen();
-        SetWindowSize(STARTINGWIDTH, STARTINGHEIGHT);
+        SetWindowSize(INITIAL_WIDTH, INITIAL_HEIGHT);
       } else {
         SetWindowSize(GetMonitorWidth(0), GetMonitorHeight(0));
         ToggleFullscreen();
@@ -79,7 +93,7 @@ int main() {
     EndDrawing();
   }
 
-  if (isrecording)
+  if (is_recording)
     tinywav_close_write(&tw);
   CloseWindow();
   UnloadAudioStream(stream);

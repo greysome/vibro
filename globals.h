@@ -7,58 +7,38 @@
 
 #include "raylib.h"
 #include "tinywav/tinywav.h"
-#include "util.h"
 
 #define FPS 60
-#define STARTINGWIDTH 1200
-#define STARTINGHEIGHT 700
 
-// These will be different from STARTINGWIDTH/HEIGHT if user goes to fullscreen mode.
-extern int screenwidth;
-extern int screenheight;
+// Window dimensions upon program startup, and also after exiting fullscreen mode.
+// May not be equal to *current* window dimensions (which is instead stored in
+// screen_width/screen_height), as the user can freely resize the window.
+#define INITIAL_WIDTH 1200
+#define INITIAL_HEIGHT 700
 
-// For setting up Raylib audio
-#define MAXSAMPLES_PER_UPDATE 9192
-#define SAMPLERATE 96000
-#define BITDEPTH 16
+// Parameters passed to the Raylib audio functions
+// SetAudioStreamBufferSizeDefault() and LoadAudioStream()
+#define MAX_SAMPLES_PER_UPDATE 9192
+#define SAMPLE_RATE 96000
+#define BIT_DEPTH 16
 
-#define RECORDFILE "out.wav"
-#define MINOCTAVE -4
-#define MAXOCTAVE 2
-// How loud should this program be compared to the actual
-// system volume, from 0 to 1?
-#define MAXVOL 0.3
-// Number of seconds for the drawn wave to move one full cycle
-#define WAVESPEED 2.0
-// Controls the scale of the horizontal axis for the drawn wave.
-// The lower, the more bunched up the wave will be
-#define WAVEXSCALE 20000
-// Scale of vertical axis.
-#define WAVEYSCALE 100
+#define RECORD_FILE "out.wav"
 
-#define TRI 0
-#define SAW 1
-#define PULSE 2
-#define SINE 3
-extern int wavetype;
+// See comment above INITIAL_WIDTH/INITIAL_HEIGHT
+extern int screen_width;
+extern int screen_height;
 
-/** Additive synthesis **/
-#define NUM_HARMONICS 20
-extern float addsynth_coeffs[NUM_HARMONICS];
+// At each frame, if the mouse x displacement (as measured by GetMouseDelta()) >
+// mouse y displacement, then mouse_dx = mouse x displacement and mouse_dy = 0.
+// Similarly if mouse x displacement < mouse y displacement.
+// I programmed it this way to prevent accidental glissing (caused by vertical
+// mouse movement) while changing volume (caused by horizontal mouse movement).
+extern float mouse_dx;
+extern float mouse_dy;
 
-/** Recording-related **/
 // Are we recording?
-extern int isrecording;
+extern bool is_recording;
 // Struct to facilitate .wav output
 extern TinyWav tw;
-
-/** Mouse input **/
-// At each frame, exactly one of the variables will be set
-// depending on whether the vertical or horizontal motion
-// of the mouse is larger.
-extern float mousedx;
-extern float mousedy;
-
-extern Font font;
 
 #endif

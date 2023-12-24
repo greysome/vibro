@@ -8,10 +8,12 @@
 #include "raylib.h"
 #include "globals.h"
 #include "util.h"
+#include "note.h"
 #include "octave.h"
-#include "input.h"
 #include "synthesise.h"
-#include "keys.h"
+
+// Number of seconds for the drawn wave to move one full cycle
+#define WAVESPEED 2.0
 
 #define SUBGUI_BG (Color){60, 75, 65, 255}
 #define BG (Color){64, 82, 74, 255}

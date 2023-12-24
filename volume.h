@@ -7,7 +7,8 @@
 
 #include "raylib.h"
 #include "globals.h"
-#include "keys.h"
+#include "note.h"
+#include "util.h"
 
 typedef enum {
   ATTACK, DECAY, SUSTAIN, RELEASE

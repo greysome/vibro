@@ -2,27 +2,23 @@ ifeq ($(OS),Windows_NT)
 	CC = x86_64-w64-mingw32-gcc
 	LIBS = -lm -lraylib -lopengl32 -lgdi32 -lwinmm -lWs2_32
 	OUT = vibro.exe
-	CFLAGS += -Llib
 else
 	CC = gcc
 	LIBS = -lm -lraylib
 	OUT = vibro
-	CFLAGS += -Llib
 endif
+
+OBJS = tinywav/tinywav.o globals.o synthesise.o octave.o note.o volume.o freq.o gui.o
 
 all: executable
 debug: CFLAGS += -g
 debug: executable
+executable: $(OBJS)
+	$(CC) vibro.c $? -o $(OUT) -Wall $(CFLAGS) $(LIBS) -Llib
 
-tinywav/tinywav.o: tinywav/tinywav.c
-globals.o: globals.c
-synthesise.o: synthesise.c
-octave.o: octave.c
-keys.o: keys.c
-volume.o: volume.c
-freq.o: freq.c
-input.o: input.c
-gui.o: gui.c
+%.o: %.c %.h
+	$(CC) $(CFLAGS) -o $@ -c $<
 
-executable: tinywav/tinywav.o globals.o synthesise.o octave.o keys.o volume.o freq.o input.o gui.o
-	$(CC) vibro.c $? -o $(OUT) -Wall $(CFLAGS) $(LIBS)
+clean:
+	rm -f *.o
+	rm -f *.d
