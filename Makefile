@@ -14,6 +14,7 @@ all: executable
 debug: CFLAGS += -g
 debug: executable
 
+tinywav/tinywav.o: tinywav/tinywav.c
 globals.o: globals.c
 synthesise.o: synthesise.c
 octave.o: octave.c
@@ -22,7 +23,6 @@ volume.o: volume.c
 freq.o: freq.c
 input.o: input.c
 gui.o: gui.c
-tinywav/tinywav.o: tinywav/tinywav.c
 
-executable: tinywav/tinywav.o octave.o keys.o volume.o freq.o input.o globals.o gui.o synthesise.o
+executable: tinywav/tinywav.o globals.o synthesise.o octave.o keys.o volume.o freq.o input.o gui.o
 	$(CC) vibro.c $? -o $(OUT) -Wall $(CFLAGS) $(LIBS)

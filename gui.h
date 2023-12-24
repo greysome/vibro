@@ -18,11 +18,12 @@
 #define SHADOW (Color){0, 0, 0, 200}
 
 #define FONTSIZE 20
-#define XMARGIN 20
+#define XMARGIN 40
 #define YMARGIN 20
 
 void display_note_text();
 void display_octave_text();
+void display_mode_text();
 void draw_volume_level();
 void draw_wave();
 

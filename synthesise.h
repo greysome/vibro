@@ -17,6 +17,7 @@ float nes_tri(float phase);
 float nes_saw(float phase);
 float nes_pulse(float phase);
 float add_synthesise(float phase);
+float get_amplitude(float *phases);
 void write_audio_samples(void *buffer, unsigned int frames);
 
 #endif

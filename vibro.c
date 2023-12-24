@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "debug.h"
+#include "freq.h"
 #include "raylib.h"
 #include "tinywav/tinywav.h"
 
@@ -17,11 +18,10 @@
 
 void draw() {
   ClearBackground(BG);
-
   draw_wave();
-
   display_octave_text();
   display_note_text();
+  display_mode_text();
   draw_volume_level();
 }
 
@@ -48,6 +48,11 @@ int main() {
     else mousedx = 0;
 
     process_keyboard_inputs();
+
+    if (IsKeyPressed(KEY_LEFT_CONTROL)) {
+      toggle_chord_mode();
+      reset_freq_modifiers();
+    }
 
     if (IsKeyPressed(KEY_GRAVE)) {
       if (!isrecording)

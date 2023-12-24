@@ -3,8 +3,8 @@
  * This code is under the MIT License.
  */
 #include "keys.h"
+#include "raylib.h"
 
-#define KEYTABLE_SIZE 33
 // The keytable keeps track of which keys are pressed. It is
 // used to determine which note to play out, in the case that
 // multiple keys were pressed.
@@ -13,32 +13,61 @@ static short keytable[KEYTABLE_SIZE];
 // are newly pressed or released
 static short keytable_prev[KEYTABLE_SIZE];
 
-#define MAX_VOICES 6
-// Only 6 notes can be played at once, but internally more notes than
-// that may have to be handled, e.g. if a chord of 6 notes was just
-// released and user immediately pressed another chord of 6 notes
-#define MAX_NOTE_ENTRIES 10 * MAX_VOICES
-#define NOT_HELD -100
-static bool chord_mode = true;
+static bool chord_mode = false;
 
-// VARIABLES FOR SOLO MODE
-static NoteState cur_note_state;
+static NoteState cur_note_states[KEYTABLE_SIZE];
+// ONLY FOR SOLO MODE
 static NoteState prev_note_state;
-static int cur_note;
 static int prev_note;
-
-// VARIABLES FOR CHORD MODE
-static NoteState cur_note_states[MAX_NOTE_ENTRIES];
-static NoteState prev_note_state;
-// The number of semitones above the C at the current octave.
-// Only changes when a new note is pressed.
-static int cur_notes[MAX_NOTE_ENTRIES];
 
 /** *****************************/
 /** COMMON FUNCTIONS            */
 /** *****************************/
 
+NoteState *get_cur_note_states() { return cur_note_states; }
+int get_prev_note() { return prev_note; }
+NoteState get_prev_note_state() { return prev_note_state; }
+
 bool is_chord_mode() { return chord_mode; }
+bool is_solo_mode() { return !chord_mode; }
+void toggle_chord_mode() {
+  chord_mode = !chord_mode;
+  kill_notes();
+}
+
+bool is_note_down() {
+  for (int i = 0; i < KEYTABLE_SIZE; i++) {
+    NoteState s = cur_note_states[i];
+    if (s == PRESSED || s == HELD)
+      return true;
+  }
+  return false;
+}
+
+bool is_note_pressed() {
+  for (int note = 0; note < KEYTABLE_SIZE; note++) {
+    NoteState s = cur_note_states[note];
+    if (s == PRESSED)
+      return true;
+  }
+  return false;
+}
+
+void kill_note(int note) {
+  if (is_solo_mode()) {
+    prev_note_state = cur_note_states[note];
+    cur_note_states[note] = IDLE;
+  }
+  else {
+    cur_note_states[note] = IDLE;
+  }
+}
+
+void kill_notes() {
+  for (int note = 0; note < KEYTABLE_SIZE; note++) {
+    kill_note(note);
+  }
+}
 
 static void update_keytables() {
   for (int i = 0; i < KEYTABLE_SIZE; i++)
@@ -101,122 +130,104 @@ static void update_keytables() {
 /** SOLO MODE                   */
 /** *****************************/
 
-int get_cur_note() { return cur_notes[0]; }
-int get_prev_note() { return prev_note; }
-NoteState get_prev_note_state() { return prev_note_state; }
-NoteState get_cur_note_state() { return cur_note_states[0]; }
+int get_cur_note() {
+  for (int i = 0; i < KEYTABLE_SIZE; i++)
+    if (cur_note_states[i] == PRESSED || cur_note_states[i] == HELD)
+      return i;
+  return -1;
+}
+
+NoteState get_cur_note_state() {
+  int note = get_cur_note();
+  if (note == -1) note = prev_note;
+  return cur_note_states[note];
+}
 
 bool is_legato() {
-  return (prev_note_state == HELD) && (cur_note_states[0] == PRESSED);
-}
-
-bool is_note_down() {
-  for (int i = 0; i < MAX_VOICES; i++) {
-    NoteState s = cur_note_states[i];
-    if (i == PRESSED || i == HELD)
-      return true;
-  }
-  return false;
-}
-
-void kill_note() {
-  if (is_note_down()) {
-    prev_note_state = cur_note_state;
-    cur_note_state = RELEASED;
-  }
+  return (prev_note_state == HELD) && (get_cur_note_state() == PRESSED);
 }
 
 void no_attack() {
-  if (is_note_down())
-    cur_note_state = HELD;
+  int note = get_cur_note();
+  if (note != -1 && cur_note_states[note] == PRESSED)
+    cur_note_states[note] = HELD;
 }
 
-void update_note_state() {
+void update_note_state_solo_mode() {
   update_keytables();
-  prev_note = cur_note;
-  prev_note_state = cur_note_state;
-  // Any change to the keytable?
-  bool changed = 0;
-  // A note that has remained held, to use as current note in case
-  // some other note is released. Otherwise, held_note = -1 means
-  // no note is being held.
-  static int held_note = -1;
+  if (get_cur_note() != -1)
+    prev_note = get_cur_note();
+  prev_note_state = get_cur_note_state();
 
-  held_note = NOT_HELD;
-  for (int i = 0; i < KEYTABLE_SIZE; i++) {
-    // Note is still being held
-    if (keytable_prev[i] && keytable[i])
-      held_note = i - 1;  // Subtract 1 because the first keytable entry is actually a B
-    // Note is newly pressed
-    else if (!keytable_prev[i] && keytable[i]) {
-      changed = 1;
-      held_note = i - 1;
+  int pressed_note = NOT_HELD;
+  int held_note = NOT_HELD;
+  bool any_released = false;
+
+  for (int note = 0; note < KEYTABLE_SIZE; note++) {
+    if (keytable_prev[note] && keytable[note])  // Note is still being held
+      held_note = note;
+    else if (!keytable_prev[note] && keytable[note]) {  // Note is newly pressed
+      pressed_note = note;
       break;  // Break because a newly pressed note is automatically the current note
     }
-    // Note is just released
-    else if (keytable_prev[i] && !keytable[i]) {
-      changed = 1;
+    else if (keytable_prev[note] && !keytable[note]) {  // Note is just released
+      any_released = true;
+      cur_note_states[note] = RELEASED;
     }
+    else
+      cur_note_states[note] = STILLRELEASED;
   }
-  // Also account for octave changes even when the same keys are being held
-  changed |= get_prev_actual_octave() != get_cur_actual_octave();
 
-  // If the held note is currently being played at the same octave, there is no change
-  // even if other notes were released.
-  if (get_prev_actual_octave() == get_cur_actual_octave() && is_note_down() && held_note == get_cur_note())
-    changed = 0;
-
-  if (changed) {
-    if (held_note == NOT_HELD)
-      cur_note_state = RELEASED;
-    else {
-      cur_note_state = PRESSED;
-      cur_note = held_note;
-    }
+  // If octave is changed while note is held, pretend the held note is newly pressed
+  if (get_prev_actual_octave() != get_cur_actual_octave() && is_note_down()) {
+    pressed_note = get_cur_note();
+    held_note = NOT_HELD;
   }
-  else
-    cur_note_state = (held_note == NOT_HELD) ? IDLE : HELD;
+
+  // A newly pressed note is automatically the new current note
+  if (pressed_note != NOT_HELD) {
+    cur_note_states[pressed_note] = PRESSED;
+    for (int note = 0; note < KEYTABLE_SIZE; note++)
+      if (note != pressed_note && cur_note_states[note] != RELEASED)
+	cur_note_states[note] = IDLE;
+  }
+  // If no new pressed or released notes but notes are still held, then stick with currently held note
+  else if (pressed_note == NOT_HELD && held_note != NOT_HELD && !any_released) { 
+    cur_note_states[get_cur_note()] = HELD;
+    for (int note = 0; note < KEYTABLE_SIZE; note++)
+      if (note != get_cur_note() && cur_note_states[note] != RELEASED)
+	cur_note_states[note] = IDLE;
+  }
+  // If no new pressed notes but a note was released, then use the most recent held note and pretend it was newly pressed
+  // If the held note is the note already playing, then don't attack it (i.e. set its note state to HELD)
+  else if (pressed_note == NOT_HELD && held_note != NOT_HELD && any_released) {
+    cur_note_states[held_note] = (held_note == prev_note) ? HELD : PRESSED;
+    for (int note = 0; note < KEYTABLE_SIZE; note++)
+      if (note != held_note && cur_note_states[note] != RELEASED)
+	cur_note_states[note] = IDLE;
+  }
 }
+
 
 /** *****************************/
 /** CHORD MODE                  */
 /** *****************************/
 
-int *get_cur_notes() { return cur_notes; }
-NoteState *get_cur_note_states() { return cur_note_states; }
-
-void update_note_states() {
-  memset(cur_notes, NOT_HELD, MAX_NOTE_ENTRIES * sizeof(int));
-  memset(cur_note_states, IDLE, MAX_NOTE_ENTRIES * sizeof(NoteState));
-
+void update_note_state_chord_mode() {
   update_keytables();
-  int j = 0;
-
-  for (int i = 0; i < KEYTABLE_SIZE; i++) {
-    if (keytable_prev[i] && keytable[i]) {
-      if (j > MAX_VOICES) continue;
-      cur_notes[j] = i;
-      cur_note_states[j++] = HELD;
-    }
-    else if (!keytable_prev[i] && keytable[i]) {
-      if (j > MAX_VOICES) continue;
-      cur_notes[j] = i;
-      cur_note_states[j++] = PRESSED;
-    }
-    else if (keytable_prev[i] && !keytable[i]) {
-      if (j > 10 * MAX_VOICES) break;
-      cur_notes[j] = i;
-      cur_note_states[j++] = RELEASED;
-    }
+  for (int note = 0; note < KEYTABLE_SIZE; note++) {
+    if (get_cur_note_states()[note] == RELEASED)
+      cur_note_states[note] = STILLRELEASED;
+    else if (keytable_prev[note] && keytable[note])
+      cur_note_states[note] = HELD;
+    else if (!keytable_prev[note] && keytable[note])
+      cur_note_states[note] = PRESSED;
+    else if (keytable_prev[note] && !keytable[note])
+      cur_note_states[note] = RELEASED;
   }
+}
 
-  printf("cur notes: ");
-  for (int i = 0; i < 2 * MAX_VOICES; i++)
-    printf("%d ", cur_notes[i]);
-  printf("\n");
-
-  printf("cur note states: ");
-  for (int i = 0; i < 2 * MAX_VOICES; i++)
-    printf("%d ", cur_note_states[i]);
-  printf("\n");
+void update_note_state() {
+  if (is_chord_mode()) update_note_state_chord_mode();
+  else update_note_state_solo_mode();
 }

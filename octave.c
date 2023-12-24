@@ -40,11 +40,11 @@ int get_local_octave_modifier() {
 int get_note_octave_modifier() {
   // TODO: replace the 12 with a named constant
   int note = get_cur_note();
-  if (note == -1)
+  if (note == 0)
     return -1;
-  else if (note >= 12)
+  else if (note >= 13)
     return 1;
-  else if (note >= 25)
+  else if (note >= 26)
     return 2;
   return 0;
 }

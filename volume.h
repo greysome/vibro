@@ -13,9 +13,10 @@ typedef enum {
   ATTACK, DECAY, SUSTAIN, RELEASE
 } ADSRState;
 
-void update_sustain_vol();
+void update_note_vol();
 void apply_adsr();
-float get_actual_vol();
-float get_sustain_vol();
+float get_note_vol();
+float *get_actual_vols();
+bool is_silent();
 
 #endif

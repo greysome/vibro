@@ -3,80 +3,107 @@
  * This code is under the MIT License.
  */
 #include "volume.h"
+#include "keys.h"
 
-// Sustain volume as a proportion of MAXVOL.
-// This can be controlled by the number keys on the keyboard,
-// or by left-and-right mouse movement.
 static float note_vol = 0.5;
 // Updates frame-by-frame according to ADSR envelope
-static float actual_vol = 0.0;
+static float actual_vols[KEYTABLE_SIZE] = {0};
 
-void update_sustain_vol() {
+void update_note_vol() {
   note_vol += clamp(mousedx * 0.001, -0.01, 0.01);
   note_vol = clamp(note_vol, 0, 1);
+  if (is_chord_mode()) return;
 
-#define match_key_to_sustain_vol(key, vol) \
+#define match_key_to_note_vol(key, vol) \
   if (IsKeyDown(key)) { note_vol = vol; }
 
-  match_key_to_sustain_vol(KEY_ONE, 0.1);
-  match_key_to_sustain_vol(KEY_TWO, 0.2);
-  match_key_to_sustain_vol(KEY_THREE, 0.3);
-  match_key_to_sustain_vol(KEY_FOUR, 0.4);
-  match_key_to_sustain_vol(KEY_FIVE, 0.5);
-  match_key_to_sustain_vol(KEY_SIX, 0.6);
-  match_key_to_sustain_vol(KEY_SEVEN, 0.7);
-  match_key_to_sustain_vol(KEY_EIGHT, 0.8);
-  match_key_to_sustain_vol(KEY_NINE, 0.9);
-  match_key_to_sustain_vol(KEY_ZERO, 1.0);
-#undef match_key_to_sustain_vol
+  match_key_to_note_vol(KEY_ONE, 0.1);
+  match_key_to_note_vol(KEY_TWO, 0.2);
+  match_key_to_note_vol(KEY_THREE, 0.3);
+  match_key_to_note_vol(KEY_FOUR, 0.4);
+  match_key_to_note_vol(KEY_FIVE, 0.5);
+  match_key_to_note_vol(KEY_SIX, 0.6);
+  match_key_to_note_vol(KEY_SEVEN, 0.7);
+  match_key_to_note_vol(KEY_EIGHT, 0.8);
+  match_key_to_note_vol(KEY_NINE, 0.9);
+  match_key_to_note_vol(KEY_ZERO, 1.0);
+#undef match_key_to_note_vol
 }
 
 void apply_adsr() {
-  static ADSRState adsr_state = RELEASE;
+  static ADSRState adsr_states[KEYTABLE_SIZE] = {0};
   static int attack_frames = 1;
   static int decay_frames = 10;
-  static float sustain_vol = 0.2; // A proportion of note_vol
-  static int release_frames = 5;
-  static float release_peak;  // Value of actualvol right when release starts
+  static float sustain_vol = 0.7; // A proportion of note_vol
+  static int release_frames = 10;
+  static float release_peaks[KEYTABLE_SIZE] = {0};  // Value of actualvol right when release starts
 
-  if (get_cur_note_state() == PRESSED) {
-    adsr_state = ATTACK;
-    // It is possible to set this to 0 instead, but it results in unpleasant
-    // popping noises when switching notes repeatedly
-    actual_vol = note_vol / (float)attack_frames;
-  }
-  else if (get_cur_note_state() == HELD) {
-    if (adsr_state == ATTACK) {
-      actual_vol += note_vol / (float)attack_frames;
-      if (actual_vol >= note_vol) {
-        adsr_state = DECAY;
-        actual_vol = note_vol;
+  for (int note = 0; note < KEYTABLE_SIZE; note++) {
+    NoteState note_state = get_cur_note_states()[note];
+
+    if (note_state == PRESSED) {
+      adsr_states[note] = ATTACK;
+      // It is possible to set this to 0 instead, but it results in unpleasant
+      // popping noises when switching notes repeatedly
+      actual_vols[note] = note_vol / (float)attack_frames;
+    }
+    else if (note_state == HELD) {
+      if (adsr_states[note] == ATTACK) {
+	actual_vols[note] += note_vol / (float)attack_frames;
+	if (actual_vols[note] >= note_vol) {
+	  adsr_states[note] = DECAY;
+	  actual_vols[note] = note_vol;
+	}
+      }
+      else if (adsr_states[note] == DECAY) {
+	actual_vols[note] -= (note_vol - sustain_vol * note_vol) / (float)decay_frames;
+	if (actual_vols[note] <= sustain_vol * note_vol) {
+	  adsr_states[note] = SUSTAIN;
+	  actual_vols[note] = sustain_vol * note_vol;
+	}
+      }
+      else if (adsr_states[note] == SUSTAIN)  // Note that sustain_vol can change while note is being sustained
+	actual_vols[note] = sustain_vol * note_vol;
+      else if (adsr_states[note] == RELEASE) {  // Occurs during autogliss when note state is overriden from PRESSED to HELD
+	adsr_states[note] = SUSTAIN;
+	actual_vols[note] = sustain_vol * note_vol;
       }
     }
-    else if (adsr_state == DECAY) {
-      actual_vol -= (note_vol - sustain_vol) / (float)decay_frames;
-      if (actual_vol <= sustain_vol) {
-        adsr_state = SUSTAIN;
-        actual_vol = sustain_vol;
+    else if (note_state == RELEASED) {
+      adsr_states[note] = RELEASE;
+      release_peaks[note] = actual_vols[note];
+    }
+    else if (note_state == STILLRELEASED) {
+      if (actual_vols[note] > 0)
+	actual_vols[note] -= release_peaks[note] / (float)release_frames;
+      else {
+	kill_note(note);
+	actual_vols[note] = 0;
+	release_peaks[note] = 0;
       }
     }
+    else if (note_state == IDLE) {
+      actual_vols[note] = 0;
+    }
   }
-  else if (get_cur_note_state() == RELEASED) {
-    adsr_state = RELEASE;
-    release_peak = actual_vol;
-  }
-  else if (get_cur_note_state() == IDLE) {
-    if (actual_vol > 0)
-      actual_vol -= release_peak / (float)release_frames;
-    else
-      actual_vol = 0;
-  }
+
+  //printf("%d %d\n", get_prev_note_state(), get_cur_note_state());
+  //printf("note states: "); for (int i = 0; i < 10; i++) printf("%d ", get_cur_note_states()[i]); printf("\n");
+  //printf("adsr states: "); for (int i = 0; i < 10; i++) printf("%d ", adsr_states[i]); printf("\n");
+  //printf("vols: "); for (int i = 0; i < 10; i++) printf("%f ", actual_vols[i]); printf("\n\n");
 }
 
-float get_sustain_vol() {
+float get_note_vol() {
   return note_vol;
 }
 
-float get_actual_vol() {
-  return actual_vol;
+float *get_actual_vols() {
+  return actual_vols;
+}
+
+bool is_silent() {
+  for (int i = 0; i < KEYTABLE_SIZE; i++)
+    if (actual_vols[i] > 0)
+      return false;
+  return true;
 }
