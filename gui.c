@@ -1,7 +1,3 @@
-/**
- * Copyright (c) 2023-2023 Way Yan Win
- * This code is under the MIT License.
- */
 #include "gui.h"
 
 void display_note_text_solo_mode() {
