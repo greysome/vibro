@@ -1,5 +1,5 @@
-#ifndef KEYS
-#define KEYS
+#ifndef NOTE
+#define NOTE
 
 #include <string.h>
 #include "raylib.h"
@@ -22,6 +22,9 @@ typedef enum {
 } NoteState;
 
 /** Common functions **/
+/* NOTE: the ints that are returned refer to indices in the notetable.
+   The first entry is a B, so it corresponds to 0.
+   Thus, when converting these ints to frequencies based on C4, one has to first subtract by 1. */
 int *get_cur_notes();
 NoteState *get_cur_note_states();
 int get_prev_note();
