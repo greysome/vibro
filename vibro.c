@@ -31,7 +31,7 @@ void process_keyboard_inputs() {
   update_pitch_bend();
   update_autogliss();
   update_gliss();
-  update_effects();
+  update_dive();
   update_vib();
 
   update_note_vol();

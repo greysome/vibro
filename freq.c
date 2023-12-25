@@ -1,21 +1,31 @@
 #include "freq.h"
 
-#define MAXDIVEFRAMES (FPS / 2)
+#define MAX_DIVE_FRAMES (FPS / 2)
+#define DIVE_FREQ_STEP 0.95
+#define GLISS_FREQ_STEP 1.0194
 
-// Fine-control of frequency via the mousewheel. For pitch bends.
+// Pitch bends are controlled via mousewheel scrolling.
 static float bend_modifier = 1;
-// Changing frequency via up-and-down mouse movement. For glisses.
+// Glisses are controlled via up-and-down mouse movement.
 static float gliss_modifier = 1;
-// Changing frequency via space bar. For vibrato.
+// Vibrato is controlled by SPACE key.
 static float vib_modifier = 1;
-// Changing frequency from the dive effect.
+// Dive effect is activated by ALT key.
 static float dive_modifier = 1;
 
+// Autogliss is activated when the user glisses while pressing a new note, and
+// without releasing the previous note. The speed of the vertical mouse movement
+// (measured in prev_mouse_dy) determines the number of frames to autogliss
+// (stored in autogliss_total_frames). At each frame, the frequency is scaled by
+// a factor of autogliss_freq_step, starting from autogliss_start_freq (i.e. the
+// actual frequency right before new note was pressed); autogliss_frame_counter
+// is also incremented.
+
 static int prev_mouse_dy = 0;
-static int autogliss_frame_count = 0;
-static int autogliss_cur_frames = 0;
+static int autogliss_total_frames = 0;
+static int autogliss_frame_counter = 0;
 static float autogliss_freq_step = 1;
-static float autogliss_startfreq;
+static float autogliss_start_freq;
 
 float get_note_freq(int note, int octave) {
   return C4 * pow(2, octave) * pow(SEMITONE, note);
@@ -26,169 +36,124 @@ float get_actual_freq(int note, int octave) {
 }
 
 void update_pitch_bend() {
-  static int is_scrolling = 0;
-  // Number of frames that user hasn't scrolled. Used to determine when to snap
-  // the pitch bend to the nearest semitone.
-  static int frames_noscroll = 0;
+  // We keep track of the number of frames the user hasn't scrolled, so that
+  // when it reaches a certain amount we snap the pitch bend modifier to the
+  // nearest semitone.
+  static int frames_not_scrolled = 0;
 
+  // Reset pitch bend when there is a new note.
   if (is_any_note_pressed()) {
-    frames_noscroll = 0;
-    is_scrolling = 0;
+    frames_not_scrolled = 0;
     bend_modifier = 1;
   }
 
   float dy = GetMouseWheelMove();
-  if (dy > 0) {
-    bend_modifier *= pow(1.0194, dy);
-    is_scrolling = 1;
-  }
-  else if (dy < 0) {
-    bend_modifier /= pow(1.0194, -dy);
-    is_scrolling = 1;
-  }
+  if (dy == 0)
+    frames_not_scrolled++;
   else
-    frames_noscroll++;
+    bend_modifier *= powf(GLISS_FREQ_STEP, dy);
 
-  if (frames_noscroll >= 5) {
-    frames_noscroll = 0;
+  if (frames_not_scrolled >= 5) {
+    frames_not_scrolled = 0;
     // Snap to nearest semitone
-    if (is_scrolling) {
-      // Sorry for messy code I'll fix this later I promise
-
-      // Upwards
-      if (sqrt(SEMITONE) < bend_modifier &&
-          bend_modifier < SEMITONE * sqrt(SEMITONE))
-        bend_modifier = SEMITONE;
-      else if (SEMITONE * sqrt(SEMITONE) <= bend_modifier &&
-               bend_modifier < SEMITONE * SEMITONE * sqrt(SEMITONE))
-        bend_modifier = SEMITONE * SEMITONE;
-      else if (SEMITONE * SEMITONE * sqrt(SEMITONE) <= bend_modifier &&
-               bend_modifier <
-                   SEMITONE * SEMITONE * SEMITONE * sqrt(SEMITONE))
-        bend_modifier = SEMITONE * SEMITONE * SEMITONE;
-      else if (SEMITONE * SEMITONE * SEMITONE * sqrt(SEMITONE) <=
-                   bend_modifier &&
-               bend_modifier <
-                   SEMITONE * SEMITONE * SEMITONE * SEMITONE * sqrt(SEMITONE))
-        bend_modifier = SEMITONE * SEMITONE * SEMITONE * SEMITONE;
-
-      // Downwards
-      else if (1.0 / (SEMITONE * sqrt(SEMITONE)) <= bend_modifier &&
-               bend_modifier < 1.0 / sqrt(SEMITONE))
-        bend_modifier = 1.0 / SEMITONE;
-      else if (1.0 / (SEMITONE * SEMITONE * sqrt(SEMITONE)) <=
-                   bend_modifier &&
-               bend_modifier < 1.0 / (SEMITONE * sqrt(SEMITONE)))
-        bend_modifier = 1.0 / (SEMITONE * SEMITONE);
-      else if (1.0 / (SEMITONE * SEMITONE * SEMITONE * sqrt(SEMITONE)) <=
-                   bend_modifier &&
-               bend_modifier < 1.0 / (SEMITONE * SEMITONE * sqrt(SEMITONE)))
-        bend_modifier = 1.0 / (SEMITONE * SEMITONE * SEMITONE);
-      else if (1.0 / (SEMITONE * SEMITONE * SEMITONE * SEMITONE *
-                      sqrt(SEMITONE)) <=
-                   bend_modifier &&
-               bend_modifier <
-                   1.0 / (SEMITONE * SEMITONE * SEMITONE * sqrt(SEMITONE)))
-        bend_modifier = 1.0 / (SEMITONE * SEMITONE * SEMITONE * SEMITONE);
-
-      else
-        bend_modifier = 1.0;
-    }
+    float num_semitones = logf(bend_modifier) / logf(SEMITONE);
+    bend_modifier = powf(SEMITONE, roundf(num_semitones));
   }
 }
 
 static bool is_autoglissing() {
   NoteState s = get_cur_note_state();
-  return is_solo_mode() && autogliss_cur_frames < autogliss_frame_count &&
+  return is_solo_mode() && autogliss_frame_counter < autogliss_total_frames &&
     (s == PRESSED || s == HELD);
 }
 
 void update_gliss() {
-  if (is_autoglissing()) {
-    gliss_modifier = 1;
-    return;
-  }
-  // Reset gliss if note newly pressed in solo mode
-  if (is_solo_mode() && get_cur_note_state() == PRESSED) {
-    gliss_modifier = 1;
-    return;
-  }
-  // Reset gliss if no note is down
-  if (!is_any_note_playing()) {
+  // 1. Ignore gliss when autoglissing
+  // 2. Reset gliss when a new note is pressed
+  if (is_autoglissing() || is_any_note_pressed()) {
     gliss_modifier = 1;
     return;
   }
 
   prev_mouse_dy = mouse_dy;
   float factor = 1.0002;
-  if (mouse_dy > 0)
+  if (mouse_dy != 0)
     gliss_modifier /= pow(factor, mouse_dy);
-  else if (mouse_dy < 0)
-    gliss_modifier *= pow(factor, -mouse_dy);
   gliss_modifier = clamp(gliss_modifier, 0.5, 2);
 }
 
-void update_effects() {
-  static int frames_dive = 0;
+void update_dive() {
+  static int frames_dived = 0;
+  // Activate dive when ALT key is pressed.
   if (IsKeyPressed(KEY_LEFT_ALT) || IsKeyPressed(KEY_RIGHT_ALT))
-    frames_dive = 1;
-
-  if (frames_dive > 0) {
-    if (++frames_dive <= MAXDIVEFRAMES)
-      if (is_any_note_pressed()) {
-        frames_dive = 0;
-        dive_modifier = 1;
-      }
-      else
-	dive_modifier *= 0.95;
-    else {
-      kill_notes();
-      frames_dive = 0;
+    frames_dived = 1;
+  // Dive is active only when frames_dived > 0
+  if (frames_dived == 0)
+    return;
+  if (++frames_dived <= MAX_DIVE_FRAMES)
+    // Reset dive when new note is pressed.
+    if (is_any_note_pressed()) {
+      frames_dived = 0;
       dive_modifier = 1;
     }
+    else
+      dive_modifier *= DIVE_FREQ_STEP;
+  else {
+    kill_notes();
+    frames_dived = 0;
+    dive_modifier = 1;
   }
 }
 
 void update_vib() {
-  static NoteState prev_vib_state;
-  static NoteState cur_vib_state = IDLE;
-  // The two parameters that control vibrato: frequency and length of
-  // pressing spacebar. The former controls speed and the latter controls
-  // depth.
-  static int frames_onspace, frames_betweenspace;
+  // There are two parameters controlling vibrato: the frequency and length of
+  // the SPACE presses. The former is measured by frames_space_up and
+  // controls vibrato speed (vib_speed), while the latter is measured by
+  // frames_space_down and controls vibrato depth (vib_depth).
+
+  // The actual vibrato works by oscillating the frequency according to a sine
+  // wave. The current phase of the wave is stored in vib_phase.
+
+  static int frames_space_down = 0;
+  static int frames_space_up = 0;
   static float vib_speed = 0;
   static float vib_depth = 1;
   static float vib_phase = 0;
 
-  bool previously_doing_vib = (prev_vib_state == PRESSED) || (prev_vib_state == HELD);
-  bool doing_vib = (cur_vib_state == PRESSED) || (cur_vib_state == HELD);
+  static bool space_down;
+  static bool prev_space_down = false;
 
-  // Momentarily kill vibrato when a new note is pressed
+  // Momentarily kill vibrato when a new note is pressed.
   if (is_any_note_pressed()) {
     vib_depth = 1;
-    cur_vib_state = IDLE;
-    frames_onspace = 0;
-    frames_betweenspace = 0;
     vib_modifier = 1;
+    frames_space_down = 0;
+    frames_space_up = 0;
     return;
   }
 
-  vib_phase += vib_speed / FPS;
-  prev_vib_state = cur_vib_state;
+  prev_space_down = space_down;
+  space_down = IsKeyDown(KEY_SPACE);
 
-  if (IsKeyDown(KEY_SPACE))
-    cur_vib_state = doing_vib ? HELD : PRESSED;
-  else
-    cur_vib_state = doing_vib ? RELEASED : IDLE;
+  // SPACE was just pressed
+  if (!prev_space_down && space_down) {
+    vib_speed = 1.0 / frames_space_up;
+    frames_space_up = 0;
+  }
 
-  // Just pressed space
-  if (!previously_doing_vib && doing_vib) {
-    vib_speed = 1.0 / frames_betweenspace;
-    frames_betweenspace = 0;
-  } else {
-    frames_betweenspace++;
-    if (frames_betweenspace > 30) {
-      // Make vibrato decay if not 'replenished'
+  // SPACE was just released
+  if (prev_space_down && !space_down) {
+    vib_depth = clamp(pow(1.003, frames_space_down), 1, 1.04);
+    frames_space_down = 0;
+  }
+
+  // SPACE is down
+  if (space_down)
+    frames_space_down++;
+  else {
+    frames_space_up++;
+    // Make vibrato decay if SPACE is not pressed continually
+    if (frames_space_up > 30) {
       vib_speed = 0;
       vib_phase = 0;
       vib_modifier += 0.2 * (1.0 - vib_modifier);
@@ -196,41 +161,32 @@ void update_vib() {
     }
   }
 
-  // Just released space
-  if (previously_doing_vib && !doing_vib) {
-    vib_depth = clamp(pow(1.003, frames_onspace), 1, 1.04);
-    frames_onspace = 0;
-  }
-  // Still pressing on space
-  if (doing_vib)
-    frames_onspace++;
-
-  vib_phase += vib_speed;
+  vib_phase += vib_speed / 2;
   if (vib_phase >= 1)
-    vib_phase = 0;
+    vib_phase -= 1;
   vib_modifier = pow(vib_depth, sinf(vib_phase * 2 * PI));
 }
 
 void update_autogliss() {
+  // Autogliss is only activated in solo mode when a new note is pressed while glissing on the previous note
   if (is_chord_mode()) return;
-  // Autogliss is only activated in solo mode when new note is pressed while glissing on the previous note
   if (is_legato() && prev_mouse_dy) {
-    no_attack();
-    autogliss_cur_frames = 0;
-    autogliss_startfreq = get_actual_freq(get_prev_note() - 1, get_prev_actual_octave());
+    no_attack(); // We don't want to attack the new note!
+    autogliss_start_freq = get_actual_freq(get_prev_note() - 1, get_prev_actual_octave());
     // Reset gliss; moving mouse vertically now does nothing until autogliss is complete
     gliss_modifier = 1;
     int cur_note_freq = get_note_freq(get_cur_note() - 1, get_cur_actual_octave());
-    autogliss_frame_count = abs(cur_note_freq - autogliss_startfreq) / powf(-prev_mouse_dy, 0.5);
-    autogliss_frame_count = clamp(autogliss_frame_count, 5, 40);
-    autogliss_freq_step = powf(cur_note_freq / autogliss_startfreq, 1.0 / autogliss_frame_count);
+    autogliss_total_frames = abs(cur_note_freq - autogliss_start_freq) / powf(-prev_mouse_dy, 0.5);
+    autogliss_total_frames = clamp(autogliss_total_frames, 5, 40);
+    autogliss_freq_step = powf(cur_note_freq / autogliss_start_freq, 1.0 / autogliss_total_frames);
+    autogliss_frame_counter = 0;
   }
 
   if (is_autoglissing())
-    autogliss_cur_frames++;
+    autogliss_frame_counter++;
   else {
-    autogliss_cur_frames = 0;
-    autogliss_frame_count = 0;
+    autogliss_frame_counter = 0;
+    autogliss_total_frames = 0;
     autogliss_freq_step = 1;
   }
 }
@@ -238,8 +194,7 @@ void update_autogliss() {
 float *get_cur_actual_freqs() {
   static float freqs[NOTETABLE_SIZE];
   if (is_solo_mode() && is_any_note_playing() && is_autoglissing()) {
-    memset(freqs, 0, NOTETABLE_SIZE * sizeof(float));
-    freqs[get_cur_note()] = autogliss_startfreq * powf(autogliss_freq_step, autogliss_cur_frames);
+    freqs[get_cur_note()] = autogliss_start_freq * powf(autogliss_freq_step, autogliss_frame_counter);
   }
   else {
     for (int i = 0; i < NOTETABLE_SIZE; i++)
