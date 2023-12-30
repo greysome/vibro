@@ -81,11 +81,6 @@ void apply_adsr() {
       actual_vols[note] = 0;
     }
   }
-
-  //printf("%d %d\n", get_prev_note_state(), get_cur_note_state());
-  //printf("note states: "); for (int i = 0; i < 10; i++) printf("%d ", get_cur_note_states()[i]); printf("\n");
-  //printf("adsr states: "); for (int i = 0; i < 10; i++) printf("%d ", adsr_states[i]); printf("\n");
-  //printf("vols: "); for (int i = 0; i < 10; i++) printf("%f ", actual_vols[i]); printf("\n\n");
 }
 
 float get_note_vol() {

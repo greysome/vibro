@@ -8,7 +8,7 @@ else
 	OUT = vibro
 endif
 
-OBJS = tinywav/tinywav.o globals.o synthesise.o octave.o note.o volume.o freq.o gui.o
+OBJS = tinywav/tinywav.o globals.o synthesise.o octave.o note.o volume.o freq.o gui.o play_mode.o instrument_mode.o
 
 all: executable
 debug: CFLAGS += -g

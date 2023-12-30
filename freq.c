@@ -177,7 +177,7 @@ void update_autogliss() {
     gliss_modifier = 1;
     int cur_note_freq = get_note_freq(get_cur_note() - 1, get_cur_actual_octave());
     autogliss_total_frames = abs(cur_note_freq - autogliss_start_freq) / powf(-prev_mouse_dy, 0.5);
-    autogliss_total_frames = clamp(autogliss_total_frames, 5, 40);
+    autogliss_total_frames = clamp(autogliss_total_frames, 5, 1800);
     autogliss_freq_step = powf(cur_note_freq / autogliss_start_freq, 1.0 / autogliss_total_frames);
     autogliss_frame_counter = 0;
   }
@@ -194,7 +194,7 @@ void update_autogliss() {
 float *get_cur_actual_freqs() {
   static float freqs[NOTETABLE_SIZE];
   if (is_solo_mode() && is_any_note_playing() && is_autoglissing()) {
-    freqs[get_cur_note()] = autogliss_start_freq * powf(autogliss_freq_step, autogliss_frame_counter);
+    freqs[get_cur_note()] = autogliss_start_freq * powf(autogliss_freq_step, autogliss_frame_counter) * vib_modifier;
   }
   else {
     for (int i = 0; i < NOTETABLE_SIZE; i++)
