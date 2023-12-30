@@ -22,7 +22,7 @@ static NoteState cur_note_states[NOTETABLE_SIZE];
 static NoteState prev_note_state;
 // (SOLO MODE)
 // The note played in the previous frame.
-static int prev_note;
+static int prev_note = NIL;
 
 /** *****************************/
 /** COMMON FUNCTIONS            */
@@ -99,6 +99,7 @@ static void update_notetables() {
     map_keys_to_notetable_entry(KEY_PERIOD, KEY_W, 15);
     map_keys_to_notetable_entry(KEY_SEMICOLON, KEY_THREE, 16);
     map_keys_to_notetable_entry(KEY_SLASH, KEY_E, 17);
+    map_keys_to_notetable_entry(KEY_APOSTROPHE, KEY_R, 18);
   }
   else {
     map_key_to_notetable_entry(KEY_M, 12);
@@ -107,10 +108,10 @@ static void update_notetables() {
     map_key_to_notetable_entry(KEY_PERIOD, 15);
     map_key_to_notetable_entry(KEY_SEMICOLON, 16);
     map_key_to_notetable_entry(KEY_SLASH, 17);
+    map_key_to_notetable_entry(KEY_R, 18);
   }
 
   if (chord_mode) {
-    map_key_to_notetable_entry(KEY_R, 18);
     map_key_to_notetable_entry(KEY_FIVE, 19);
     map_key_to_notetable_entry(KEY_T, 20);
     map_key_to_notetable_entry(KEY_SIX, 21);
@@ -140,9 +141,16 @@ int get_cur_note() {
   return NIL;
 }
 
+int get_cur_note_or_prev() {
+  int note = get_cur_note();
+  if (note == NIL)
+    note = get_prev_note();
+  return note;
+}
+
 NoteState get_cur_note_state() {
   int note = get_cur_note();
-  return note == NIL ? NIL : cur_note_states[note];
+  return note == NIL ? IDLE : cur_note_states[note];
 }
 
 bool is_legato() {
@@ -208,7 +216,8 @@ static void update_note_state_in_solo_mode() {
   else if (pressed_note == NIL && !any_released && held_note != NIL) { 
     int cur_note = get_cur_note();
     kill_notes();
-    cur_note_states[cur_note] = HELD;
+    if (cur_note != NIL)
+      cur_note_states[cur_note] = HELD;
   }
 }
 

@@ -1,42 +1,18 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include "debug.h"
-#include "freq.h"
-#include "raylib.h"
 #include "tinywav/tinywav.h"
-
+#include "raylib.h"
 #include "util.h"
 #include "globals.h"
+#include "freq.h"
 #include "synthesise.h"
-#include "gui.h"
+#include "play_mode.h"
+#include "instrument_mode.h"
 
-void draw() {
-  ClearBackground(BG);
-  draw_wave();
-  display_octave_text();
-  display_note_text();
-  display_mode_text();
-  draw_volume_level();
-}
-
-void process_keyboard_inputs() {
-  // Local/global octave needs to be updated BEFORE note state.
-  // This is because a change in octave will cause change in note state,
-  // even if the same key is being held.
-  update_global_octave();
-  update_local_octave_modifier();
-  update_note_state();
-
-  update_pitch_bend();
-  update_autogliss();
-  update_gliss();
-  update_dive();
-  update_vib();
-
-  update_note_vol();
-  apply_adsr();
-}
+typedef enum {
+  PLAY_MODE, INSTRUMENT_MODE
+} GuiMode;
 
 int main() {
   InitWindow(INITIAL_WIDTH, INITIAL_HEIGHT, "vibro");
@@ -50,29 +26,12 @@ int main() {
   DisableCursor();
   SetTargetFPS(FPS);
 
+  GuiMode gui_mode = PLAY_MODE;
+  add_instrument();
+
   while (!WindowShouldClose()) {
     screen_width = GetScreenWidth();
     screen_height = GetScreenHeight();
-
-    mouse_dx = GetMouseDelta().x;
-    mouse_dy = GetMouseDelta().y;
-    if (abs(mouse_dx) >= abs(mouse_dy)) mouse_dy = 0;
-    else mouse_dx = 0;
-
-    process_keyboard_inputs();
-
-    if (IsKeyPressed(KEY_LEFT_CONTROL)) {
-      toggle_chord_mode();
-      reset_freq_modifiers();
-    }
-
-    if (IsKeyPressed(KEY_GRAVE)) {
-      if (!is_recording)
-        tinywav_open_write(&tw, 1, SAMPLE_RATE, TW_INT16, TW_INLINE, RECORD_FILE);
-      else
-        tinywav_close_write(&tw);
-      is_recording = !is_recording;
-    }
 
     if (IsKeyPressed(KEY_TAB)) {
       if (IsWindowFullscreen()) {
@@ -84,10 +43,56 @@ int main() {
       }
     }
 
-    BeginDrawing();
-    draw();
-    EndDrawing();
+
+#define SHIFT_LEFT (SHIFT_DOWN && IsKeyPressed(KEY_LEFT))
+#define SHIFT_RIGHT (SHIFT_DOWN && IsKeyPressed(KEY_RIGHT))
+
+    // Do stuff before switching modes
+    if (SHIFT_LEFT || SHIFT_RIGHT) {
+      if (gui_mode == INSTRUMENT_MODE)
+	commit_instrument_mode_changes();
+    }
+
+    // Decide mode to switch to
+    if (SHIFT_LEFT) {
+      if (gui_mode == PLAY_MODE)
+	gui_mode = INSTRUMENT_MODE;
+      else
+	gui_mode--;
+    }
+    else if (SHIFT_RIGHT) {
+      if (gui_mode == INSTRUMENT_MODE)
+	gui_mode = PLAY_MODE;
+      else
+	gui_mode++;
+    }
+
+    // Do stuff after switching modes
+    if (SHIFT_LEFT || SHIFT_RIGHT) {
+      if (gui_mode == INSTRUMENT_MODE) {
+	kill_notes();
+	kill_vols();
+	reset_entryrow();
+	load_instrument_mode_state(get_cur_instrument_idx());
+      }
+    }
+
+    if (gui_mode == PLAY_MODE) {
+      if (IsKeyPressed(KEY_LEFT))
+	select_previous_instrument();
+      if (IsKeyPressed(KEY_RIGHT))
+	select_next_instrument();
+    }
+
+    switch (gui_mode) {
+    case PLAY_MODE: play_mode_gui(); break;
+    case INSTRUMENT_MODE: instrument_mode_gui(); break;
+    }
   }
+
+  cleanup_instruments();
+  if (gui_mode == INSTRUMENT_MODE)
+    cleanup_instrument_mode_state();
 
   if (is_recording)
     tinywav_close_write(&tw);

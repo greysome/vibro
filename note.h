@@ -25,7 +25,6 @@ typedef enum {
 /* NOTE: the ints that are returned refer to indices in the notetable.
    The first entry is a B, so it corresponds to 0.
    Thus, when converting these ints to frequencies based on C4, one has to first subtract by 1. */
-int *get_cur_notes();
 NoteState *get_cur_note_states();
 int get_prev_note();
 NoteState get_prev_note_state();
@@ -43,6 +42,7 @@ void kill_notes(); /* Set every note's state to IDLE. */
    first down note. In particular, this is useful when displaying the octave
    number. */
 int get_cur_note();
+int get_cur_note_or_prev();
 /* (SOLO MODE)
    Gets the state of the current playing note, or NIL otherwise. */
 NoteState get_cur_note_state();

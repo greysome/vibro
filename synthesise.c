@@ -1,45 +1,52 @@
 #include "synthesise.h"
 
-static float cur_pulse_width = 0.5;
 static float cur_phases[NOTETABLE_SIZE] = {0};
 
-#define NUM_HARMONICS 20
-static float addsynth_coeffs[NUM_HARMONICS] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-
-float tri(float phase) {
-  return 4 * abs(phase - 0.5) - 1;
+float pulse(float phase, float pulse_width) {
+  return phase >= pulse_width ? -1 : 1;
 }
 
-float nes_tri(float phase) {
-  float y = tri(phase);
-  return y - fmodf2(y, 2.0 / 16);
+float tri(float phase, bool nes_style) {
+  float y = 4 * fabs(phase - 0.5) - 1;
+  if (nes_style)
+    y -= fmodf2(y, 2.0 / 16);
+  return y;
 }
 
-float nes_saw(float phase) {
+float saw(float phase, bool nes_style) {
   float y = 2 * (phase - 0.5);
-  return y - fmodf2(y, 2.0 / 16);
+  if (nes_style)
+    y -= fmodf2(y, 2.0 / 16);
+  return y;
 }
 
-float nes_pulse(float phase) {
-  return phase >= cur_pulse_width ? -1 : 1;
-}
-
-float add_synthesise(float phase) {
+float sine(float phase, float *sine_coeffs) {
   float output = 0;
   float amplitude = 0;
   for (int i = 0; i < NUM_HARMONICS; i++) {
-    amplitude += addsynth_coeffs[i];
-    output += addsynth_coeffs[i] * sinf(phase * 2 * (i + 1) * PI);
+    amplitude += sine_coeffs[i];
+    output += sine_coeffs[i] * sinf(phase*2*(i+1)*PI);
   }
   return output / amplitude;
 }
 
 float get_amplitude(float *phases) {
+  if (get_num_instruments() == 0)
+    return 0;
+  Instrument instrument = *get_cur_instrument();
   float amplitude = 0;
   float vol = 0;
+  float y;
   for (int note = 0; note < NOTETABLE_SIZE; note++) {
     vol = get_actual_vols()[note] * MAX_VOL;
-    amplitude += vol * nes_pulse(phases[note]);
+    switch (instrument.type) {
+    case PULSE: y = pulse(phases[note], instrument.pulse_width); break;
+    case TRI: y = tri(phases[note], instrument.tri_nes_style); break;
+    case SAW: y = saw(phases[note], instrument.saw_nes_style); break;
+    case SINE: y = sine(phases[note], instrument.sine_coeffs); break;
+    case SAMPLE: case MULTISAMPLE: y = 0; break;
+    }
+    amplitude += vol * y;
   }
   return amplitude;
 }
@@ -48,12 +55,10 @@ void write_audio_samples(void *buffer, unsigned int frames) {
   short* d = (short*)buffer;
   float wavbuf[frames];
   float amplitude;
-  static float prev;
 
   for (unsigned int i = 0; i < frames; i++) {
-    prev = amplitude;
     amplitude = get_amplitude(cur_phases);
-    amplitude = clamp(amplitude, -0.5, 0.5);
+    amplitude = fclamp(amplitude, -0.5, 0.5);
     d[i] = (short)(amplitude * pow(2, BIT_DEPTH));
     if (is_recording) {
       // For some reason, these changes need to be made to the

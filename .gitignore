@@ -1,4 +1,7 @@
 *.o
+*.gcno
+*.gcda
+*.gcov
 core.*
 out.wav
 .vscode/
