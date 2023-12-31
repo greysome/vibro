@@ -44,13 +44,13 @@ int main() {
       }
     }
 
-    if (IsKeyPressed(KEY_LEFT)) {
+    if (SHIFT_DOWN && IsKeyPressed(KEY_LEFT)) {
       if (gui_mode == PLAY_MODE)
 	gui_mode = INSTRUMENT_MODE;
       else
 	gui_mode--;
     }
-    else if (IsKeyPressed(KEY_RIGHT)) {
+    else if (SHIFT_DOWN && IsKeyPressed(KEY_RIGHT)) {
       if (gui_mode == INSTRUMENT_MODE)
 	gui_mode = PLAY_MODE;
       else

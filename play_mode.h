@@ -12,8 +12,6 @@
 // Number of seconds for the drawn wave to move one full cycle
 #define WAVESPEED 2.0
 
-#define PLAY_MODE_BG (Color){64, 82, 74, 255}
-
 void play_mode_gui();
 
 #endif

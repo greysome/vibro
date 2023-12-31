@@ -25,8 +25,7 @@ static void display_note_text_solo_mode() {
   match_scale_degree_with_text(11, "B-");
 #undef match_scale_degree_with_text
 
-  DrawText(note_text, XMARGIN+3, YMARGIN+23, 40, BLACK);
-  DrawText(note_text, XMARGIN, YMARGIN+20, 40, WHITE);
+  DrawShadowedText(note_text, XMARGIN, YMARGIN+20, 40, WHITE);
 }
 
 static void display_note_text_chord_mode() {
@@ -54,10 +53,8 @@ static void display_note_text_chord_mode() {
   }
   notes_text_1 = TextFormat("%s %s %s", note_labels[indices[0]], note_labels[indices[1]], note_labels[indices[2]]);
   notes_text_2 = TextFormat("%s %s %s", note_labels[indices[3]], note_labels[indices[4]], note_labels[indices[5]]);
-  DrawText(notes_text_1, XMARGIN+3, YMARGIN+20, 30, BLACK);
-  DrawText(notes_text_1, XMARGIN, YMARGIN+20, 30, WHITE);
-  DrawText(notes_text_2, XMARGIN+3, YMARGIN+50, 30, BLACK);
-  DrawText(notes_text_2, XMARGIN, YMARGIN+50, 30, WHITE);
+  DrawShadowedText(notes_text_1, XMARGIN, YMARGIN+20, 30, WHITE);
+  DrawShadowedText(notes_text_2, XMARGIN, YMARGIN+50, 30, WHITE);
 }
 
 static void display_note_text() {
@@ -78,21 +75,15 @@ static void display_octave_text() {
   else 
     octave_text = TextFormat("Octave %d", octave + 4);
 
-  DrawText(octave_text, XMARGIN+3, YMARGIN+3, 20, BLACK);
-  DrawText(octave_text, XMARGIN, YMARGIN, 20, WHITE);
+  DrawShadowedText(octave_text, XMARGIN, YMARGIN, 20, WHITE);
 }
 
 static void display_mode_text() {
-  DrawTextSE("PLAY", screen_width-XMARGIN+5, screen_height-YMARGIN-15, 60, BLACK);
-  DrawTextSE("PLAY", screen_width-XMARGIN, screen_height-YMARGIN-20, 60, WHITE);
-  if (is_chord_mode()) {
-    DrawTextSE("CHORDS", screen_width-XMARGIN+3, screen_height-YMARGIN, 20, BLACK);
-    DrawTextSE("CHORDS", screen_width-XMARGIN, screen_height-YMARGIN-3, 20, WHITE);
-  }
-  else {
-    DrawTextSE("SOLO", screen_width-XMARGIN+3, screen_height-YMARGIN, 20, BLACK);
-    DrawTextSE("SOLO", screen_width-XMARGIN, screen_height-YMARGIN-3, 20, WHITE);
-  }
+  DrawShadowedTextSE("PLAY", screen_width-XMARGIN, screen_height-YMARGIN-20, 60, WHITE);
+  if (is_chord_mode())
+    DrawShadowedTextSE("CHORDS", screen_width-XMARGIN, screen_height-YMARGIN-3, 20, WHITE);
+  else
+    DrawShadowedTextSE("SOLO", screen_width-XMARGIN, screen_height-YMARGIN-3, 20, WHITE);
 }
 
 static void draw_volume_level() {
@@ -204,7 +195,7 @@ void play_mode_gui() {
   apply_adsr();
 
   BeginDrawing();
-  ClearBackground(PLAY_MODE_BG);
+  ClearBackground((Color){64,82,74,255});
   draw_wave();
   display_octave_text();
   display_note_text();
