@@ -8,6 +8,7 @@
 #include "octave.h"
 #include "synthesise.h"
 #include "gui.h"
+#include "sample.h"
 
 // Number of seconds for the drawn wave to move one full cycle
 #define WAVESPEED 2.0

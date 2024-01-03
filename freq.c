@@ -61,7 +61,7 @@ void update_pitch_bend() {
   }
 }
 
-static bool is_autoglissing() {
+bool is_autoglissing() {
   NoteState s = get_cur_note_state();
   return is_solo_mode() && autogliss_frame_counter < autogliss_total_frames &&
     (s == PRESSED || s == HELD);
@@ -177,7 +177,7 @@ void update_autogliss() {
     gliss_modifier = 1;
     int cur_note_freq = get_note_freq(get_cur_note() - 1, get_cur_actual_octave());
     autogliss_total_frames = abs(cur_note_freq - autogliss_start_freq) / powf(-prev_mouse_dy, 0.5);
-    autogliss_total_frames = clamp(autogliss_total_frames, 5, 1800);
+    autogliss_total_frames = clamp(autogliss_total_frames, 5, 300);
     autogliss_freq_step = powf(cur_note_freq / autogliss_start_freq, 1.0 / autogliss_total_frames);
     autogliss_frame_counter = 0;
   }
@@ -202,6 +202,12 @@ float *get_cur_actual_freqs() {
   }
   return freqs;
 }
+
+float get_bend_modifier() { return bend_modifier; }
+float get_gliss_modifier() { return gliss_modifier; }
+float get_vib_modifier() { return vib_modifier; }
+float get_dive_modifier() { return dive_modifier; }
+float get_autogliss_modifier() { return powf(autogliss_freq_step, autogliss_frame_counter); }
 
 void reset_freq_modifiers() {
   bend_modifier = 1;

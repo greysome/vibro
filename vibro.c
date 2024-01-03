@@ -2,12 +2,11 @@
 #include <stdio.h>
 #include <string.h>
 #include "debug.h"
-#include "freq.h"
-#include "raylib.h"
 #include "tinywav/tinywav.h"
-
+#include "raylib.h"
 #include "util.h"
 #include "globals.h"
+#include "freq.h"
 #include "synthesise.h"
 #include "play_mode.h"
 #include "instrument_mode.h"
@@ -29,6 +28,7 @@ int main() {
   SetTargetFPS(FPS);
 
   GuiMode gui_mode = PLAY_MODE;
+  init_instrument();
 
   while (!WindowShouldClose()) {
     screen_width = GetScreenWidth();
@@ -42,6 +42,10 @@ int main() {
         SetWindowSize(GetMonitorWidth(0), GetMonitorHeight(0));
         ToggleFullscreen();
       }
+    }
+
+    if (SHIFT_DOWN && gui_mode == INSTRUMENT_MODE && (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_RIGHT))) {
+      reload_instrument_sample_if_changed();
     }
 
     if (SHIFT_DOWN && IsKeyPressed(KEY_LEFT)) {
@@ -66,6 +70,7 @@ int main() {
   if (is_recording)
     tinywav_close_write(&tw);
   CloseWindow();
+  UnloadSound(get_instrument().sample);
   UnloadAudioStream(stream);
   CloseAudioDevice();
 

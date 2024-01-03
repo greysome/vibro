@@ -114,15 +114,62 @@ static void draw_volume_level() {
   DrawLineEx(v3, v1, 3, WHITE);
 }
 
-void draw_wave() {
-  if (is_silent()) {
-    Vector2 start = {0, screen_height / 2};
-    Vector2 end = {screen_width, screen_height / 2};
+static void draw_straight_line() {
+  Vector2 start = {0, screen_height/2};
+  Vector2 end = {screen_width, screen_height/2};
+  // Shadow
+  DrawLineEx((Vector2){0, screen_height/2 + 3}, (Vector2){screen_width, screen_height/2 + 3}, 3, BLACK);
+  // Actual
+  DrawLineEx(start, end, 3, WHITE);
+}
+
+static void draw_wave_sample(Instrument *instrument) {
+  if (!instrument->sample_ready) {
+    DrawShadowedTextCenter("Sample not found", screen_width / 2, screen_height / 2, 40, WHITE);
+    return;
+  }
+
+  NoteState note_state = get_cur_note_state();
+  if (is_silent() || note_state == RELEASED || !IsSoundPlaying(instrument->sample)) {
+    draw_straight_line();
+    return;
+  }
+
+  SamplePlaybackState playback_state = get_sample_playback_state();
+  float pitch_modifier = playback_state.pitch_modifier;
+  int frame_counter = playback_state.sample_frame_counter;
+  float actual_vol = get_actual_vols()[get_cur_note()];
+
+  float amplitude, next_amplitude;
+  int y, next_y;
+  for (int i = 0; i < screen_width; i += 1) {
+    if (frame_counter + i * pitch_modifier >= instrument->sample_data_length)
+      amplitude = 0;
+    else
+      amplitude = instrument->sample_data[frame_counter + (int)(i*pitch_modifier)] * actual_vol;
+
+    if (frame_counter + (i+1) * pitch_modifier >= instrument->sample_data_length)
+      next_amplitude = 0;
+    else
+      next_amplitude = instrument->sample_data[frame_counter + (int)((i+1)*pitch_modifier)] * actual_vol;
+
+    y = screen_height / 2 - 300 * amplitude;
+    next_y = screen_height / 2 - 300 * next_amplitude;
+
     // Shadow
-    DrawLineEx((Vector2){0, screen_height / 2 + 3},
-               (Vector2){screen_width, screen_height / 2 + 3}, 3, BLACK);
+    Vector2 start_shadow = {i+3, y+2};
+    Vector2 end_shadow = {i+5, next_y+2};
+    DrawLineEx(start_shadow, end_shadow, 2, BLACK);
     // Actual
-    DrawLineEx(start, end, 3, WHITE);
+    Vector2 start = {i, y};
+    Vector2 end = {i+2, next_y};
+    DrawLineEx(start, end, 2, WHITE);
+  }
+}
+
+static void draw_wave_periodic() {
+  if (is_silent()) {
+    draw_straight_line();
     return;
   }
 
@@ -133,15 +180,18 @@ void draw_wave() {
   float amplitude, next_amplitude;
   int y, next_y;
   float *cur_actual_freqs = get_cur_actual_freqs();
+  NoteState *note_states = get_cur_note_states();
 
   for (int note = 0; note < NOTETABLE_SIZE; note++)
-    next_phases[note] = start_phase;
-  
+    next_phases[note] = 0;
+
   for (int i = 0; i < screen_width; i += 1) {
     for (int note = 0; note < NOTETABLE_SIZE; note++) {
+      if (note_states[4]) {}
       phases[note] = next_phases[note];
       next_phases[note] += dphase * cur_actual_freqs[note];
-      if (next_phases[note] > 1) next_phases[note] -= 1;
+      if (next_phases[note] > 1)
+        next_phases[note] -= 1;
     }
     amplitude = get_amplitude(phases);
     next_amplitude = get_amplitude(next_phases);
@@ -157,6 +207,14 @@ void draw_wave() {
     Vector2 end = {i+2, next_y};
     DrawLineEx(start, end, 2, WHITE);
   }
+}
+
+void draw_wave() {
+  Instrument instrument = get_instrument();
+  if (instrument.wave_type == SAMPLE)
+    draw_wave_sample(&instrument);
+  else
+    draw_wave_periodic();
 }
 
 void play_mode_gui() {
@@ -193,6 +251,9 @@ void play_mode_gui() {
 
   update_note_vol();
   apply_adsr();
+
+  if (get_instrument().wave_type == SAMPLE)
+    play_sample();
 
   BeginDrawing();
   ClearBackground((Color){64,82,74,255});

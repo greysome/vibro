@@ -45,6 +45,7 @@ float get_amplitude(float *phases) {
     case PULSE: y = pulse(phases[note], instrument.pulse_width); break;
     case TRI: y = tri(phases[note], instrument.tri_nes_style); break;
     case SAW: y = saw(phases[note], instrument.saw_nes_style); break;
+    case SAMPLE: y = 0; break;
     }
     amplitude += vol * y;
   }
