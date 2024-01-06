@@ -15,7 +15,8 @@
 #define square(x) ((x)*(x))
 // Returns min if x < min, max if x > max, and x otherwise
 #define clamp(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
-#define abs(x) ((x) < 0 ? -(x) : (x))
+// Clashes with stdlib.h's abs
+//#define abs(x) ((x) < 0 ? -(x) : (x))
 #define mod(a, b) (((a) % (b) < 0 ? (a) % (b) + (b) : (a) % (b)))
 // C's fmodf does not truly behave like mod for a < 0, rather it behaves
 // like a similar (but different) function called rem.

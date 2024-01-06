@@ -123,35 +123,39 @@ static void draw_straight_line() {
   DrawLineEx(start, end, 3, WHITE);
 }
 
-static void draw_wave_sample(Instrument *instrument) {
-  if (!instrument->sample_ready) {
-    DrawShadowedTextCenter("Sample not found", screen_width / 2, screen_height / 2, 40, WHITE);
-    return;
+static void draw_wave_sample(Sample *samples) {
+  for (int i = 0; i < MULTISAMPLE_MAX; i++) {
+    if (strnlen(samples[i].path, MAX_STR_LEN) > 0 && !samples[i].is_ready) {
+      DrawShadowedTextCenter(TextFormat("Sample not found: %s", samples[i].path), screen_width/2, screen_height/2, 40, WHITE);
+      return;
+    }
   }
 
-  NoteState note_state = get_cur_note_state();
-  if (is_silent() || note_state == RELEASED || !IsSoundPlaying(instrument->sample)) {
-    draw_straight_line();
-    return;
-  }
-
-  SamplePlaybackState playback_state = get_sample_playback_state();
-  float pitch_modifier = playback_state.pitch_modifier;
-  int frame_counter = playback_state.sample_frame_counter;
-  float actual_vol = get_actual_vols()[get_cur_note()];
-
-  float amplitude, next_amplitude;
+  NoteState *note_states = get_cur_note_states();
+  SamplePlaybackState *playback_states = get_sample_playback_states();
+  float *actual_vols = get_actual_vols();
+  float amplitude;
+  float next_amplitude = 0;
   int y, next_y;
-  for (int i = 0; i < screen_width; i += 1) {
-    if (frame_counter + i * pitch_modifier >= instrument->sample_data_length)
-      amplitude = 0;
-    else
-      amplitude = instrument->sample_data[frame_counter + (int)(i*pitch_modifier)] * actual_vol;
 
-    if (frame_counter + (i+1) * pitch_modifier >= instrument->sample_data_length)
-      next_amplitude = 0;
-    else
-      next_amplitude = instrument->sample_data[frame_counter + (int)((i+1)*pitch_modifier)] * actual_vol;
+  for (int i = 0; i < screen_width; i += 1) {
+    amplitude = next_amplitude;
+    next_amplitude = 0;
+
+    for (int note = 0; note < NOTETABLE_SIZE; note++) {
+      Sample sample = samples[note];
+      if (!sample.is_ready || !IsSoundPlaying(sample.sound) || (note_states[note] == RELEASED && sample.stop_on_release)) {
+	if (note == 0 && note_states[note] == RELEASED)
+	  printf("hi\n");
+	continue;
+      }
+      int frame_counter = playback_states[note].sample_frame_counter;
+      float pitch_modifier = playback_states[note].pitch_modifier;
+
+      if (frame_counter + (i+1)*pitch_modifier < sample.num_frames)
+	//next_amplitude += sample.data[frame_counter + (int)((i+1)*pitch_modifier)] * sample.volume_modifier * get_note_vol();
+	next_amplitude += sample.data[frame_counter + (int)((i+1)*pitch_modifier)] * sample.volume_modifier * actual_vols[note];
+    }
 
     y = screen_height / 2 - 300 * amplitude;
     next_y = screen_height / 2 - 300 * next_amplitude;
@@ -211,8 +215,8 @@ static void draw_wave_periodic() {
 
 void draw_wave() {
   Instrument instrument = get_instrument();
-  if (instrument.wave_type == SAMPLE)
-    draw_wave_sample(&instrument);
+  if (instrument.wave_type == SAMPLE || instrument.wave_type == MULTISAMPLE)
+    draw_wave_sample(instrument.samples);
   else
     draw_wave_periodic();
 }
@@ -220,7 +224,7 @@ void draw_wave() {
 void play_mode_gui() {
   mouse_dx = GetMouseDelta().x;
   mouse_dy = GetMouseDelta().y;
-  if (abs(mouse_dx) >= abs(mouse_dy)) mouse_dy = 0;
+  if (fabs(mouse_dx) >= fabs(mouse_dy)) mouse_dy = 0;
   else mouse_dx = 0;
 
   if (IsKeyPressed(KEY_LEFT_CONTROL)) {
@@ -252,8 +256,22 @@ void play_mode_gui() {
   update_note_vol();
   apply_adsr();
 
-  if (get_instrument().wave_type == SAMPLE)
-    play_sample();
+  Instrument instrument = get_instrument();
+  if (instrument.wave_type == SAMPLE) {
+    for (int note = 0; note < NOTETABLE_SIZE; note++)
+      handle_sample_playback(note, instrument.samples[note]);
+  }
+  else if (instrument.wave_type == MULTISAMPLE) {
+    if (is_solo_mode()) {
+      int note = get_cur_note_or_prev();
+      if (note != NIL)
+	handle_sample_playback(note, instrument.samples[note]);
+    }
+    else if (is_chord_mode()) {
+      for (int note = 0; note < NOTETABLE_SIZE; note++)
+	handle_sample_playback(note, instrument.samples[note]);
+    }
+  }
 
   BeginDrawing();
   ClearBackground((Color){64,82,74,255});
@@ -261,6 +279,7 @@ void play_mode_gui() {
   display_octave_text();
   display_note_text();
   display_mode_text();
+  DrawShadowedTextCenter(instrument.name, screen_width/2, screen_height-YMARGIN-20, 30, WHITE);
   draw_volume_level();
   EndDrawing();
 }

@@ -30,7 +30,7 @@ void apply_adsr() {
   static int attack_frames = 1;
   static int decay_frames = 10;
   static float sustain_vol = 0.7; // A proportion of note_vol
-  static int release_frames = 10;
+  static int release_frames = 100;
   static float release_peaks[NOTETABLE_SIZE] = {0};  // Value of actualvol right when release starts
 
   for (int note = 0; note < NOTETABLE_SIZE; note++) {

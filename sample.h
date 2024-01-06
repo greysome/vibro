@@ -13,7 +13,7 @@ typedef struct {
   float pitch_modifier;
 } SamplePlaybackState;
 
-void play_sample();
-SamplePlaybackState get_sample_playback_state();
+void handle_sample_playback(int note, Sample sample);
+SamplePlaybackState *get_sample_playback_states();
 
 #endif

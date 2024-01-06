@@ -1,7 +1,6 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include "debug.h"
 #include "tinywav/tinywav.h"
 #include "raylib.h"
 #include "util.h"
@@ -44,21 +43,31 @@ int main() {
       }
     }
 
-    if (SHIFT_DOWN && gui_mode == INSTRUMENT_MODE && (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_RIGHT))) {
-      reload_instrument_sample_if_changed();
+
+#define SHIFT_LEFT (SHIFT_DOWN && IsKeyPressed(KEY_LEFT))
+#define SHIFT_RIGHT (SHIFT_DOWN && IsKeyPressed(KEY_RIGHT))
+
+    if (SHIFT_LEFT || SHIFT_RIGHT) {
+      if (gui_mode == INSTRUMENT_MODE)
+	commit_instrument_mode_changes();
     }
 
-    if (SHIFT_DOWN && IsKeyPressed(KEY_LEFT)) {
+    if (SHIFT_LEFT) {
       if (gui_mode == PLAY_MODE)
 	gui_mode = INSTRUMENT_MODE;
       else
 	gui_mode--;
     }
-    else if (SHIFT_DOWN && IsKeyPressed(KEY_RIGHT)) {
+    else if (SHIFT_RIGHT) {
       if (gui_mode == INSTRUMENT_MODE)
 	gui_mode = PLAY_MODE;
       else
 	gui_mode++;
+    }
+
+    if (SHIFT_LEFT || SHIFT_RIGHT) {
+      if (gui_mode == INSTRUMENT_MODE)
+	load_instrument_mode_state();
     }
 
     switch (gui_mode) {
@@ -67,10 +76,13 @@ int main() {
     }
   }
 
+  cleanup_instrument();
+  if (gui_mode == INSTRUMENT_MODE)
+    cleanup_instrument_mode_state();
+
   if (is_recording)
     tinywav_close_write(&tw);
   CloseWindow();
-  UnloadSound(get_instrument().sample);
   UnloadAudioStream(stream);
   CloseAudioDevice();
 

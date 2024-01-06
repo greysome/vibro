@@ -1,8 +1,9 @@
-# jankboard
+# vibro
 
-![screenshot](/screenshot.png)
+![Play mode](/screenshots/play_mode.png)
+![Instrument mode](/screenshots/instrument_mode.png)
 
-An instrument controlled by computer keyboard and mouse. Demo [here](https://www.youtube.com/watch?v=IdXwC5mfPfI).
+An instrument controlled by computer keyboard and mouse.
 
 ## Features
 
@@ -12,10 +13,13 @@ An instrument controlled by computer keyboard and mouse. Demo [here](https://www
 - ~~Additive synthesis (under the sine instrument)~~
 (The underlying functionality is already supported in the code, I just need to cook up a nice GUI for these)
 
-## Controls
+## Global controls
+
+- `SHIFT-LEFT/RIGHT` to switch between instrument 
+
+## Play mode controls
 
 - `Z S X D C` ... `, L . ; /` are the notes
-- ~~`- = BACKSPACE \` to switch between triangle, sawtooth, pulse and sine waves (also can be changed by clicking on icon)~~ (Outdated, these controls will come under the currently-in-construction instrument mode)
 - `1 ... 0` for global volume control
 - Move mouse left/right for local volume control
 - Spam `SPACE` for vibrato. How long you press it controls depth, how fast you press it controls speed.
@@ -30,9 +34,15 @@ An instrument controlled by computer keyboard and mouse. Demo [here](https://www
 - `` ` `` to record
 - For right handers, I recommended the mouse be placed to the left of the keyboard.
 
-## TODO
+## Instrument mode controls
 
-- [ ] FEATURE: instrument mode
-- [ ] FEATURE: loop mode
+- Navigate using arrow keys
+- For text fields: only backspace and DEL are supported
+- For value fields (e.g. pitch modifier): use left/right arrow keys for coarse changes, mouse scrollwheel for fine changes
 
-## Notes
+## Credits
+
+I'd like to thank the following libraries for letting me focus on the application logic:
+
+- Raylib by raysan5
+- stb_ds.h by Sean Barrett

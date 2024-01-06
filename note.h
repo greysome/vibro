@@ -42,6 +42,7 @@ void kill_notes(); /* Set every note's state to IDLE. */
    first down note. In particular, this is useful when displaying the octave
    number. */
 int get_cur_note();
+int get_cur_note_or_prev();
 /* (SOLO MODE)
    Gets the state of the current playing note, or NIL otherwise. */
 NoteState get_cur_note_state();

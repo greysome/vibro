@@ -11,7 +11,7 @@ float pulse(float phase, float pulse_width) {
 }
 
 float tri(float phase, bool nes_style) {
-  float y = 4 * abs(phase - 0.5) - 1;
+  float y = 4 * fabs(phase - 0.5) - 1;
   if (nes_style)
     y -= fmodf2(y, 2.0 / 16);
   return y;
@@ -45,7 +45,7 @@ float get_amplitude(float *phases) {
     case PULSE: y = pulse(phases[note], instrument.pulse_width); break;
     case TRI: y = tri(phases[note], instrument.tri_nes_style); break;
     case SAW: y = saw(phases[note], instrument.saw_nes_style); break;
-    case SAMPLE: y = 0; break;
+    case SAMPLE: case MULTISAMPLE: y = 0; break;
     }
     amplitude += vol * y;
   }

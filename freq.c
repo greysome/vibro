@@ -176,7 +176,7 @@ void update_autogliss() {
     // Reset gliss; moving mouse vertically now does nothing until autogliss is complete
     gliss_modifier = 1;
     int cur_note_freq = get_note_freq(get_cur_note() - 1, get_cur_actual_octave());
-    autogliss_total_frames = abs(cur_note_freq - autogliss_start_freq) / powf(-prev_mouse_dy, 0.5);
+    autogliss_total_frames = fabs(cur_note_freq - autogliss_start_freq) / powf(-prev_mouse_dy, 0.5);
     autogliss_total_frames = clamp(autogliss_total_frames, 5, 300);
     autogliss_freq_step = powf(cur_note_freq / autogliss_start_freq, 1.0 / autogliss_total_frames);
     autogliss_frame_counter = 0;

@@ -6,12 +6,32 @@
 #include "raylib.h"
 #include "globals.h"
 #include "gui.h"
+#include "note.h"
 
 #define MAX_STR_LEN 100
+#define MULTISAMPLE_MAX 33
 
 typedef enum {
-  PULSE, TRI, SAW, SAMPLE
+  PULSE, TRI, SAW, SAMPLE, MULTISAMPLE
 } WaveType;
+
+typedef struct {
+  /* User-specified settings */
+  char path[MAX_STR_LEN];
+  float pitch_modifier;
+  float volume_modifier;
+  bool play_continuously;
+  bool stop_on_release;
+
+  /* Internal state */
+  bool is_ready;
+  int sample_rate;
+  int num_frames;
+
+  bool is_alias;
+  Sound sound;
+  const float *data;
+} Sample;
 
 typedef struct {
   char name[MAX_STR_LEN];
@@ -21,21 +41,15 @@ typedef struct {
   bool tri_nes_style;
   bool saw_nes_style;
 
-  char sample_path[MAX_STR_LEN];
-  bool sample_changed;
-  bool sample_ready;
-  float sample_pitch_modifier;
-  bool sample_play_continuously;
-  bool sample_stop_on_release;
-  Sound sample;
-  int sample_rate;
-  int sample_data_length;
-  float *sample_data;
+  Sample samples[NOTETABLE_SIZE];
 } Instrument;
 
 void instrument_mode_gui();
 void init_instrument();
-void reload_instrument_sample_if_changed();
+void load_instrument_mode_state();
+void cleanup_instrument();
+void cleanup_instrument_mode_state();
+void commit_instrument_mode_changes();
 Instrument get_instrument();
 
 #endif

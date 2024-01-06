@@ -4,7 +4,7 @@ ifeq ($(OS),Windows_NT)
 	OUT = vibro.exe
 else
 	CC = gcc
-	LIBS = -lm -lraylib
+	LIBS = -lm -l:libraylib.a
 	OUT = vibro
 endif
 
@@ -12,7 +12,7 @@ OBJS = tinywav/tinywav.o globals.o synthesise.o octave.o note.o volume.o freq.o 
 
 all: executable
 debug: CFLAGS += -g
-debug: executable
+debug: clean executable
 executable: $(OBJS)
 	$(CC) vibro.c $? -o $(OUT) -Wall $(CFLAGS) $(LIBS) -Llib
 
