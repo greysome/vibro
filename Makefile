@@ -19,7 +19,7 @@ all: $(OBJS)
 	$(CC) $(CFLAGS) -o $@ -c $<
 
 debug: CFLAGS += -g -fanalyzer -fsanitize=address -fsanitize=undefined -fprofile-arcs -ftest-coverage
-debug: clean all
+debug: all
 
 clean:
 	rm -f core.*

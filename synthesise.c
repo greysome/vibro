@@ -40,7 +40,7 @@ float get_amplitude(float *phases) {
   float y;
   for (int note = 0; note < NOTETABLE_SIZE; note++) {
     vol = get_actual_vols()[note] * MAX_VOL;
-    switch (instrument.wave_type) {
+    switch (instrument.type) {
     case PULSE: y = pulse(phases[note], instrument.pulse_width); break;
     case TRI: y = tri(phases[note], instrument.tri_nes_style); break;
     case SAW: y = saw(phases[note], instrument.saw_nes_style); break;

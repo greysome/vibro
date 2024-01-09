@@ -215,7 +215,7 @@ static void draw_wave_periodic() {
 
 void draw_wave() {
   Instrument instrument = get_instrument();
-  if (instrument.wave_type == SAMPLE || instrument.wave_type == MULTISAMPLE)
+  if (instrument.type == SAMPLE || instrument.type == MULTISAMPLE)
     draw_wave_sample(instrument.samples);
   else
     draw_wave_periodic();
@@ -257,11 +257,11 @@ void play_mode_gui() {
   apply_adsr();
 
   Instrument instrument = get_instrument();
-  if (instrument.wave_type == SAMPLE) {
+  if (instrument.type == SAMPLE) {
     for (int note = 0; note < NOTETABLE_SIZE; note++)
       handle_sample_playback(note, instrument.samples[note]);
   }
-  else if (instrument.wave_type == MULTISAMPLE) {
+  else if (instrument.type == MULTISAMPLE) {
     if (is_solo_mode()) {
       int note = get_cur_note_or_prev();
       if (note != NIL)

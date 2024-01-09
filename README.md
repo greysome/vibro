@@ -8,8 +8,9 @@ An instrument controlled by computer keyboard and mouse.
 ## Features
 
 - Expressive features! (see [Controls](#controls))
-- ~~Sound recording~~
-- ~~ADSR envelope modification~~
+- You can load in samples!
+- ADSR envelopes!
+- Sound recording!
 - ~~Additive synthesis (under the sine instrument)~~
 (The underlying functionality is already supported in the code, I just need to cook up a nice GUI for these)
 

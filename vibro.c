@@ -66,8 +66,11 @@ int main() {
     }
 
     if (SHIFT_LEFT || SHIFT_RIGHT) {
-      if (gui_mode == INSTRUMENT_MODE)
+      if (gui_mode == INSTRUMENT_MODE) {
+	kill_notes();
+	kill_vols();
 	load_instrument_mode_state();
+      }
     }
 
     switch (gui_mode) {

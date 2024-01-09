@@ -16,18 +16,25 @@ typedef enum {
 } WaveType;
 
 typedef struct {
+  int attack_frames;
+  int decay_frames;
+  float sustain_vol; // A proportion of note_vol
+  int release_frames;
+} ADSRParams;
+
+typedef struct {
   /* User-specified settings */
   char path[MAX_STR_LEN];
   float pitch_modifier;
   float volume_modifier;
   bool play_continuously;
   bool stop_on_release;
+  ADSRParams adsr;
 
   /* Internal state */
   bool is_ready;
   int sample_rate;
   int num_frames;
-
   bool is_alias;
   Sound sound;
   const float *data;
@@ -35,7 +42,10 @@ typedef struct {
 
 typedef struct {
   char name[MAX_STR_LEN];
-  WaveType wave_type;
+  WaveType type;
+  /* If type is MULTISAMPLE, then the ADSR parameters are stored
+   * in the entries of `samples`. */
+  ADSRParams adsr;
 
   float pulse_width;
   bool tri_nes_style;

@@ -216,7 +216,8 @@ static void update_note_state_in_solo_mode() {
   else if (pressed_note == NIL && !any_released && held_note != NIL) { 
     int cur_note = get_cur_note();
     kill_notes();
-    cur_note_states[cur_note] = HELD;
+    if (cur_note != NIL)
+      cur_note_states[cur_note] = HELD;
   }
 }
 

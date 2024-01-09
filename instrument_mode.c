@@ -20,24 +20,22 @@
 #define UNSELECTED_COLOR LIGHTGRAY
 
 #define CHOOSE_COLOR(cond) (cond) ? SELECTED_COLOR : UNSELECTED_COLOR
-#define BIND_SCROLLUP_ON_ROW(n) if (row == n && GetMouseWheelMove() < 0)
-#define BIND_SCROLLDOWN_ON_ROW(n) if (row == n && GetMouseWheelMove() > 0)
-#define BIND_LEFT_ON_ROW(n) if (row == n && IsKeyPressed(KEY_LEFT) && !SHIFT_DOWN)
-#define BIND_RIGHT_ON_ROW(n) if (row == n && IsKeyPressed(KEY_RIGHT) && !SHIFT_DOWN)
 
 typedef struct {
   int note;
+  // The user can expand the entry to show all sample parameters, e.g. pitch modifier
+  bool is_expanded;
   Sample sample;
 } MultisampleEntry;
 
 typedef struct {
   Sample sample;
   MultisampleEntry *multisample_entries;
-  int selected_column; // 0, 1, 2 or 3
 } InstrumentModeState;
 
 static Instrument instrument;
 static InstrumentModeState mode_state;
+static int cur_row = 0;  // Current row of the GUI
 
 static int display_heading(const char *text, int x, int y) {
   return DrawAndMeasureShadowedText(text, x, y, 20, HEADING_COLOR);
@@ -86,7 +84,7 @@ static void populate_sample_data(Sample *sample) {
   }
 }
 
-int char_to_note(char c) {
+static int char_to_note(char c) {
   switch (c) {
   case 'a': return 0;
   case 'z': return 1;
@@ -125,7 +123,7 @@ int char_to_note(char c) {
   }
 }
 
-char *note_to_chars(int note) {
+static char *note_to_chars(int note) {
   switch (note) {
   case 0: return "A";
   case 1: return "Z";
@@ -164,12 +162,20 @@ char *note_to_chars(int note) {
   }
 }
 
-void init_sample_fields(Sample *sample) {
+static void init_adsr_params(ADSRParams *adsr) {
+  adsr->attack_frames = 10;
+  adsr->decay_frames = 5;
+  adsr->sustain_vol = 0.7;
+  adsr->release_frames = 20;
+}
+
+static void init_sample_fields(Sample *sample) {
   memset(sample->path, 0, MAX_STR_LEN * sizeof(char));
   sample->pitch_modifier = 1;
   sample->volume_modifier = 1;
   sample->play_continuously = false;
   sample->stop_on_release = false;
+  init_adsr_params(&sample->adsr);
 
   sample->is_ready = false;
   sample->sample_rate = NIL;
@@ -182,7 +188,8 @@ void init_sample_fields(Sample *sample) {
 
 void init_instrument() {
   strcpy(instrument.name, "Instrument 1");
-  instrument.wave_type = MULTISAMPLE;
+  instrument.type = PULSE;
+  init_adsr_params(&instrument.adsr);
   instrument.pulse_width = 0.5;
   instrument.tri_nes_style = false;
   instrument.saw_nes_style = false;
@@ -226,7 +233,7 @@ void cleanup_instrument_mode_state() {
 
 void commit_instrument_mode_changes() {
   cleanup_instrument();
-  if (instrument.wave_type == SAMPLE) {
+  if (instrument.type == SAMPLE) {
     instrument.samples[0] = mode_state.sample;
     populate_sample_data(&instrument.samples[0]);
     // Make sample aliases
@@ -239,7 +246,7 @@ void commit_instrument_mode_changes() {
       }
     }
   }
-  else if (instrument.wave_type == MULTISAMPLE) {
+  else if (instrument.type == MULTISAMPLE) {
     for (int i = 0; i < (int)arrlenu(mode_state.multisample_entries); i++) {
       MultisampleEntry entry = mode_state.multisample_entries[i];
       if (entry.note != NIL) {
@@ -254,195 +261,378 @@ void commit_instrument_mode_changes() {
 static void add_multisample_entry() {
   Sample sample;
   init_sample_fields(&sample);
-  MultisampleEntry entry = {.note = NIL, .sample = sample};
+  MultisampleEntry entry = {.note = NIL, .sample = sample, .is_expanded = false};
   arrput(mode_state.multisample_entries, entry);
 }
 
-static void multisample_submenu(int *row, int *x, int *y) {
-  if (IsKeyPressed(KEY_LEFT))
-    mode_state.selected_column = clamp(mode_state.selected_column-1, 0, 3);
-  if (IsKeyPressed(KEY_RIGHT))
-    mode_state.selected_column = clamp(mode_state.selected_column+1, 0, 3);
+
+#define ON_ENTRY_AND_ROW(i,row) (cur_entry == i && cur_entryrow == row)
+#define BIND_SCROLLUP_ON_ENTRY_ROW(i,row) if (ON_ENTRY_AND_ROW(i,row) && GetMouseWheelMove() < 0)
+#define BIND_SCROLLDOWN_ON_ENTRY_ROW(i,row) if (ON_ENTRY_AND_ROW(i,row) && GetMouseWheelMove() > 0)
+#define BIND_LEFT_ON_ENTRY_ROW(i,row) if (ON_ENTRY_AND_ROW(i,row) && IsKeyPressed(KEY_LEFT) && !SHIFT_DOWN)
+#define BIND_RIGHT_ON_ENTRY_ROW(i,row) if (ON_ENTRY_AND_ROW(i,row) && IsKeyPressed(KEY_RIGHT) && !SHIFT_DOWN)
+
+// NIL value means that the current row is either instrument name or type
+static int cur_entry = NIL;
+// When expanded, an entry takes up multiple rows showing the sample parameters.
+static int cur_entryrow = NIL;
+// Only applicable when cur_entryrow = 0.
+// The first row of each multisample entry looks like this:
+// BIND [KEY] TO [SAMPLE PATH]      [ADD] [DELETE] [+/-]
+//        0            1              2      3       4
+//        ^ cur_col
+static int cur_col = 0;
+
+static void multisample_update_bool_field(int entry, int entry_row, bool *field) {
+  BIND_LEFT_ON_ENTRY_ROW(entry, entry_row)
+    *field = true;
+  BIND_RIGHT_ON_ENTRY_ROW(entry, entry_row)
+    *field = false;
+}
+
+static void multisample_update_int_field(int entry, int entry_row, int *field, int min, int max, int small_offset, int large_offset) {
+  BIND_LEFT_ON_ENTRY_ROW(entry, entry_row)
+    *field = clamp(*field - large_offset, min, max);
+  BIND_SCROLLUP_ON_ENTRY_ROW(entry, entry_row)
+    *field = clamp(*field - small_offset, min, max);
+  BIND_RIGHT_ON_ENTRY_ROW(entry, entry_row)
+    *field = clamp(*field + large_offset, min, max);
+  BIND_SCROLLDOWN_ON_ENTRY_ROW(entry, entry_row)
+    *field = clamp(*field + small_offset, min, max);
+}
+
+static void multisample_update_float_field(int entry, int entry_row, float *field, float min, float max, float small_offset, float large_offset) {
+  BIND_LEFT_ON_ENTRY_ROW(entry, entry_row)
+    *field = fclamp(*field - large_offset, min, max);
+  BIND_SCROLLUP_ON_ENTRY_ROW(entry, entry_row)
+    *field = fclamp(*field - small_offset, min, max);
+  BIND_RIGHT_ON_ENTRY_ROW(entry, entry_row)
+    *field = fclamp(*field + large_offset, min, max);
+  BIND_SCROLLDOWN_ON_ENTRY_ROW(entry, entry_row)
+    *field = fclamp(*field + small_offset, min, max);
+}
+
+static void multisample_submenu(int *x, int *y) {
+  if (cur_entryrow == 0) {
+    if (IsKeyPressed(KEY_LEFT))
+      cur_col = clamp(cur_col-1, 0, 4);
+    if (IsKeyPressed(KEY_RIGHT))
+      cur_col = clamp(cur_col+1, 0, 4);
+  }
 
   int num_entries = arrlenu(mode_state.multisample_entries);
-  int selected_entry = *row - 2;
 
-  if (selected_entry >= 0 && selected_entry < num_entries) {
-    if (mode_state.selected_column == 0) {  // KEYBIND
-      int pressed_char = GetCharPressed();
-      int note = char_to_note(pressed_char);
-      if (note != NIL) {
-	bool already_bound = false;
-	for (int i = 0; i < num_entries; i++) {
-	  if (note == mode_state.multisample_entries[i].note) {
-	    already_bound = true;
-	    break;
+  if (cur_entry >= 0 && cur_entry < num_entries) {
+    if (cur_entryrow == 0) {
+      if (cur_col == 0) {  // KEYBIND
+	int pressed_char = GetCharPressed();
+	int note = char_to_note(pressed_char);
+	if (note != NIL) {
+	  bool already_bound = false;
+	  for (int i = 0; i < num_entries; i++) {
+	    if (note == mode_state.multisample_entries[i].note) {
+	      already_bound = true;
+	      break;
+	    }
 	  }
+	  if (!already_bound)
+	    mode_state.multisample_entries[cur_entry].note = note;
 	}
-	if (!already_bound)
-	  mode_state.multisample_entries[selected_entry].note = note;
       }
-    }
-    else if (mode_state.selected_column == 1) {  // SAMPLE PATH
-    }
-    else if (mode_state.selected_column == 2) {  // DELETE
-      if (IsKeyPressed(KEY_ENTER)) {
-	arrdel(mode_state.multisample_entries, selected_entry);
-	(*row)--;
+      else if (cur_col == 1) {  // SAMPLE PATH
       }
-    }
-    else if (mode_state.selected_column == 3) {  // ADD
-      if (IsKeyPressed(KEY_ENTER)) {
-	add_multisample_entry();
-	*row = arrlenu(mode_state.multisample_entries) + 1;
+      else if (cur_col == 2) {  // +/-
+	if (IsKeyPressed(KEY_ENTER))
+	  mode_state.multisample_entries[cur_entry].is_expanded = !mode_state.multisample_entries[cur_entry].is_expanded;
+      }
+      else if (cur_col == 3) {  // DELETE
+	if (IsKeyPressed(KEY_ENTER)) {
+	  arrdel(mode_state.multisample_entries, cur_entry);
+	  if (cur_entry > 0) {
+	    cur_row -= cur_entryrow+1;
+	    cur_entry--;
+	  }
+	  cur_entryrow = 0;
+	}
+      }
+      else if (cur_col == 4) {  // ADD
+	if (IsKeyPressed(KEY_ENTER)) {
+	  add_multisample_entry();
+	  //cur_row = arrlenu(mode_state.multisample_entries) + 1;
+	}
       }
     }
   }
 
   if (num_entries == 0) {
     add_multisample_entry();
-    *row = arrlenu(mode_state.multisample_entries) + 1;
   }
+
+  // Besides storing the total number of rows, this also keeps track of the current row
+  // when building the GUI.
+  int num_rows = 2;
   for (int i = 0; i < num_entries; i++) {
     MultisampleEntry entry = mode_state.multisample_entries[i];
+
+    *x = MENU_XMARGIN;
     *x += display_heading("BIND", *x, *y) + 30;
     char *chars = note_to_chars(entry.note);
     if (chars == NULL)
       chars = "NA";
-    *x += display_option(chars, *x, *y, selected_entry == i && mode_state.selected_column == 0, true) + 30;
+    *x += display_option(chars, *x, *y, ON_ENTRY_AND_ROW(i, 0) && cur_col == 0, true) + 30;
     *x += display_heading("TO", *x, *y) + 30;
-    *x += display_text_field(mode_state.multisample_entries[i].sample.path, *x, *y, selected_entry == i && mode_state.selected_column == 1) + 60;
-    *x += display_option("DELETE", *x, *y, selected_entry == i && mode_state.selected_column == 2, true) + 30;
-    *x += display_option("ADD", *x, *y, selected_entry == i && mode_state.selected_column == 3, true) + 30;
-    *x = MENU_XMARGIN; *y += 30;
+    *x += display_text_field(mode_state.multisample_entries[i].sample.path, *x, *y, ON_ENTRY_AND_ROW(i, 0) && cur_col == 1) + 60;
+    *x += display_option(entry.is_expanded ? "-" : "+", *x, *y, ON_ENTRY_AND_ROW(i, 0) && cur_col == 2, true) + 30;
+    *x += display_option("DELETE", *x, *y, ON_ENTRY_AND_ROW(i, 0) && cur_col == 3, true) + 30;
+    *x += display_option("ADD", *x, *y, ON_ENTRY_AND_ROW(i, 0) && cur_col == 4, true) + 30;
+    if (!entry.is_expanded) {
+      *x = MENU_XMARGIN; *y += 30;
+    }
+    num_rows++;
+
+    if (entry.is_expanded) {
+      *x = 2*MENU_XMARGIN; *y += 30;
+      *x += display_heading("PITCH MODIFIER", *x, *y) + 30;
+      *x += display_option(TextFormat("%.2f", entry.sample.pitch_modifier), *x, *y, ON_ENTRY_AND_ROW(i, 1), true) + 30;
+      multisample_update_float_field(i, 1, &mode_state.multisample_entries[i].sample.pitch_modifier, 0.5, 2.0, 0.01, 0.05);
+
+      *x = 2*MENU_XMARGIN; *y += 30;
+      *x += display_heading("VOLUME MODIFIER", *x, *y) + 30;
+      *x += display_option(TextFormat("%.2f", entry.sample.volume_modifier), *x, *y, ON_ENTRY_AND_ROW(i, 2), true) + 30;
+      multisample_update_float_field(i, 2, &mode_state.multisample_entries[i].sample.volume_modifier, 0.5, 2.0, 0.01, 0.05);
+
+      *x = 2*MENU_XMARGIN; *y += 30;
+      *x += display_heading("PLAY CONTINUOUSLY?", *x, *y) + 30;
+      *x += display_option("YES", *x, *y, ON_ENTRY_AND_ROW(i, 3), entry.sample.play_continuously) + 30;
+      *x += display_option("NO", *x, *y, ON_ENTRY_AND_ROW(i, 3), !entry.sample.play_continuously) + 30;
+      multisample_update_bool_field(i, 3, &mode_state.multisample_entries[i].sample.play_continuously);
+
+      *x = 2*MENU_XMARGIN; *y += 30;
+      *x += display_heading("STOP ON RELEASE?", *x, *y) + 30;
+      *x += display_option("YES", *x, *y, ON_ENTRY_AND_ROW(i, 4), entry.sample.stop_on_release) + 30;
+      *x += display_option("NO", *x, *y, ON_ENTRY_AND_ROW(i, 4), !entry.sample.stop_on_release) + 30;
+      multisample_update_bool_field(i, 4, &mode_state.multisample_entries[i].sample.stop_on_release);
+
+      *x = 2*MENU_XMARGIN; *y += 30;
+      *x += display_heading("ATTACK FRAMES", *x, *y) + 30;
+      *x += display_option(TextFormat("%d", entry.sample.adsr.attack_frames), *x, *y, ON_ENTRY_AND_ROW(i, 5), true) + 30;
+      multisample_update_int_field(i, 5, &mode_state.multisample_entries[i].sample.adsr.attack_frames, 0, 100, 1, 5);
+
+      *x = 2*MENU_XMARGIN; *y += 30;
+      *x += display_heading("DECAY FRAMES", *x, *y) + 30;
+      *x += display_option(TextFormat("%d", entry.sample.adsr.decay_frames), *x, *y, ON_ENTRY_AND_ROW(i, 6), true) + 30;
+      multisample_update_int_field(i, 6, &mode_state.multisample_entries[i].sample.adsr.decay_frames, 0, 100, 1, 5);
+
+      *x = 2*MENU_XMARGIN; *y += 30;
+      *x += display_heading("SUSTAIN VOL", *x, *y) + 30;
+      *x += display_option(TextFormat("%d%%", (int)(entry.sample.adsr.sustain_vol*100)), *x, *y, ON_ENTRY_AND_ROW(i, 7), true) + 30;
+      multisample_update_float_field(i, 7, &mode_state.multisample_entries[i].sample.adsr.sustain_vol, 0, 1, 0.01, 0.05);
+
+      *x = 2*MENU_XMARGIN; *y += 30;
+      *x += display_heading("RELEASE FRAMES", *x, *y) + 30;
+      *x += display_option(TextFormat("%d", entry.sample.adsr.release_frames), *x, *y, ON_ENTRY_AND_ROW(i, 8), true) + 30;
+      multisample_update_int_field(i, 8, &mode_state.multisample_entries[i].sample.adsr.release_frames, 0, 100, 1, 5);
+
+      *y += 30;
+      num_rows += 8;
+    }
   }
-  y -= 30;
+  *y -= 30;
+
+  bool is_expanded = false;
+  if (cur_entry != NIL)
+    is_expanded = mode_state.multisample_entries[cur_entry].is_expanded;
+  //printf("row %d/%d, %d:%d out of %d, %d\n", cur_row, num_rows, cur_entry, cur_entryrow, num_entries, is_expanded);
+
+  if (IsKeyPressed(KEY_UP) && !SHIFT_DOWN) {
+    if (cur_entry == 0 && cur_entryrow == 0) {
+      cur_entry = NIL; cur_entryrow = NIL;
+    }
+    else if (cur_entry > 0 && cur_entryrow == 0) {
+      cur_entry--;
+      cur_entryrow = mode_state.multisample_entries[cur_entry].is_expanded ? 8 : 0;
+    }
+    else if (cur_entryrow > 0) {
+      cur_entryrow--;
+    }
+    cur_row = clamp(cur_row-1, 0, num_rows-1);
+  }
+  if (IsKeyPressed(KEY_DOWN) && !SHIFT_DOWN) {
+    if (cur_row == 0) {
+      cur_entry = NIL; cur_entryrow = NIL;
+    }
+    else if (cur_row == 1) {
+      cur_entry = 0; cur_entryrow = 0;
+    }
+    else if (cur_entryrow == 0 && !is_expanded) {
+      if (cur_entry < num_entries - 1)
+	cur_entry++;
+    }
+    else if (cur_entryrow < 8 && is_expanded) {
+      cur_entryrow++;
+    }
+    else if (cur_entryrow == 8 && is_expanded) {
+      if (cur_entry < num_entries - 1) {
+	cur_entry++; cur_entryrow = 0;
+      }
+    }
+    cur_row = clamp(cur_row+1, 0, num_rows-1);
+  }
+}
+
+#define BIND_SCROLLUP_ON_ROW(n) if (cur_row == n && GetMouseWheelMove() < 0)
+#define BIND_SCROLLDOWN_ON_ROW(n) if (cur_row == n && GetMouseWheelMove() > 0)
+#define BIND_LEFT_ON_ROW(n) if (cur_row == n && IsKeyPressed(KEY_LEFT) && !SHIFT_DOWN)
+#define BIND_RIGHT_ON_ROW(n) if (cur_row == n && IsKeyPressed(KEY_RIGHT) && !SHIFT_DOWN)
+
+static void update_bool_field(int row, bool *field) {
+  BIND_LEFT_ON_ROW(row)
+    *field = true;
+  BIND_RIGHT_ON_ROW(row)
+    *field = false;
+}
+
+static void update_int_field(int row, int *field, int min, int max, int small_offset, int large_offset) {
+  BIND_LEFT_ON_ROW(row)
+    *field = clamp(*field - large_offset, min, max);
+  BIND_SCROLLUP_ON_ROW(row)
+    *field = clamp(*field - small_offset, min, max);
+  BIND_RIGHT_ON_ROW(row)
+    *field = clamp(*field + large_offset, min, max);
+  BIND_SCROLLDOWN_ON_ROW(row)
+    *field = clamp(*field + small_offset, min, max);
+}
+
+static void update_float_field(int row, float *field, float min, float max, float small_offset, float large_offset) {
+  BIND_LEFT_ON_ROW(row)
+    *field = fclamp(*field - large_offset, min, max);
+  BIND_SCROLLUP_ON_ROW(row)
+    *field = fclamp(*field - small_offset, min, max);
+  BIND_RIGHT_ON_ROW(row)
+    *field = fclamp(*field + large_offset, min, max);
+  BIND_SCROLLDOWN_ON_ROW(row)
+    *field = fclamp(*field + small_offset, min, max);
+}
+
+static void adsr_submenu(int start_row, int *x, int *y) {
+  *x = MENU_XMARGIN; *y += 50;
+  *x += display_heading("ATTACK FRAMES", *x, *y) + 30;
+  *x += display_option(TextFormat("%d", instrument.adsr.attack_frames), *x, *y, cur_row == start_row, true) + 30;
+  *x = MENU_XMARGIN; *y += 30;
+  update_int_field(start_row, &instrument.adsr.attack_frames, 0, 100, 1, 5);
+
+  *x += display_heading("DECAY FRAMES", *x, *y) + 30;
+  *x += display_option(TextFormat("%d", instrument.adsr.decay_frames), *x, *y, cur_row == start_row+1, true) + 30;
+  *x = MENU_XMARGIN; *y += 30;
+  update_int_field(start_row+1, &instrument.adsr.decay_frames, 0, 100, 1, 5);
+
+  *x += display_heading("SUSTAIN VOL", *x, *y) + 30;
+  *x += display_option(TextFormat("%d%%", (int)(instrument.adsr.sustain_vol*100)), *x, *y, cur_row == start_row+2, true) + 30;
+  *x = MENU_XMARGIN; *y += 30;
+  update_float_field(start_row+2, &instrument.adsr.sustain_vol, 0, 1, 0.01, 0.05);
+
+  *x += display_heading("RELEASE FRAMES", *x, *y) + 30;
+  *x += display_option(TextFormat("%d", instrument.adsr.release_frames), *x, *y, cur_row == start_row+3, true) + 30;
+  *x = MENU_XMARGIN; *y += 30;
+  update_int_field(start_row+3, &instrument.adsr.release_frames, 0, 100, 1, 5);
 }
 
 static void menu() {
-  static int row = 0;
   int x = MENU_XMARGIN;
   int y = MENU_YMARGIN;
 
   x += display_heading("NAME", x, y) + 30;
-  x += display_text_field(instrument.name, x, y, row == 0);
+  x += display_text_field(instrument.name, x, y, cur_row == 0);
 
   x = MENU_XMARGIN; y += 30;
   x += display_heading("WAVE", x, y) + 30;
-  x += display_option("PULSE", x, y, row == 1, instrument.wave_type == PULSE) + 30;
-  x += display_option("TRI", x, y, row == 1, instrument.wave_type == TRI) + 30;
-  x += display_option("SAW", x, y, row == 1, instrument.wave_type == SAW) + 30;
-  x += display_option("SAMPLE", x, y, row == 1, instrument.wave_type == SAMPLE) + 30;
-  x += display_option("MULTISAMPLE", x, y, row == 1, instrument.wave_type == MULTISAMPLE) + 30;
+  x += display_option("PULSE", x, y, cur_row == 1, instrument.type == PULSE) + 30;
+  x += display_option("TRI", x, y, cur_row == 1, instrument.type == TRI) + 30;
+  x += display_option("SAW", x, y, cur_row == 1, instrument.type == SAW) + 30;
+  x += display_option("SAMPLE", x, y, cur_row == 1, instrument.type == SAMPLE) + 30;
+  x += display_option("MULTISAMPLE", x, y, cur_row == 1, instrument.type == MULTISAMPLE) + 30;
   BIND_LEFT_ON_ROW(1)
-    instrument.wave_type = clamp(instrument.wave_type-1, 0, 4);
+    instrument.type = clamp(instrument.type-1, 0, 4);
   BIND_RIGHT_ON_ROW(1)
-    instrument.wave_type = clamp(instrument.wave_type+1, 0, 4);
+    instrument.type = clamp(instrument.type+1, 0, 4);
 
   x = MENU_XMARGIN; y += 30;
-  switch (instrument.wave_type) {
+  switch (instrument.type) {
   case PULSE:
     x += display_heading("PULSE WIDTH", x, y) + 30;
-    x += display_option(TextFormat("%d%%", (int)(instrument.pulse_width*100)), x, y, row == 2, true) + 30;
-    BIND_LEFT_ON_ROW(2)
-      instrument.pulse_width = fclamp(instrument.pulse_width-0.05, 0.05, 0.95);
-    BIND_SCROLLUP_ON_ROW(2)
-      instrument.pulse_width = fclamp(instrument.pulse_width-0.05, 0.05, 0.95);
-    BIND_RIGHT_ON_ROW(2)
-      instrument.pulse_width = fclamp(instrument.pulse_width+0.05, 0.05, 0.95);
-    BIND_SCROLLDOWN_ON_ROW(2)
-      instrument.pulse_width = fclamp(instrument.pulse_width+0.05, 0.05, 0.95);
+    x += display_option(TextFormat("%d%%", (int)(instrument.pulse_width*100)), x, y, cur_row == 2, true) + 30;
+    update_float_field(2, &instrument.pulse_width, 0.05, 0.95, 0.01, 0.05);
+    adsr_submenu(3, &x, &y);
     break;
 
   case TRI:
     x += display_heading("NES STYLE?", x, y) + 30;
-    x += display_option("YES", x, y, row == 2, instrument.tri_nes_style) + 30;
-    x += display_option("NO", x, y, row == 2, !instrument.tri_nes_style) + 30;
-    BIND_LEFT_ON_ROW(2)
-      instrument.tri_nes_style = true;
-    BIND_RIGHT_ON_ROW(2)
-      instrument.tri_nes_style = false;
+    x += display_option("YES", x, y, cur_row == 2, instrument.tri_nes_style) + 30;
+    x += display_option("NO", x, y, cur_row == 2, !instrument.tri_nes_style) + 30;
+    update_bool_field(2, &instrument.tri_nes_style);
+    adsr_submenu(3, &x, &y);
     break;
 
   case SAW:
     x += display_heading("NES STYLE?", x, y) + 30;
-    x += display_option("YES", x, y, row == 2, instrument.saw_nes_style) + 30;
-    x += display_option("NO", x, y, row == 2, !instrument.saw_nes_style) + 30;
-    BIND_LEFT_ON_ROW(2)
-      instrument.saw_nes_style = true;
-    BIND_RIGHT_ON_ROW(2)
-      instrument.saw_nes_style = false;
+    x += display_option("YES", x, y, cur_row == 2, instrument.saw_nes_style) + 30;
+    x += display_option("NO", x, y, cur_row == 2, !instrument.saw_nes_style) + 30;
+    update_bool_field(2, &instrument.saw_nes_style);
+    adsr_submenu(3, &x, &y);
     break;
 
   case SAMPLE:
     x += display_heading("SAMPLE FILE", x, y) + 30;
-    x += display_text_field(mode_state.sample.path, x, y, row == 2) + 30;
+    x += display_text_field(mode_state.sample.path, x, y, cur_row == 2) + 30;
 
     x = MENU_XMARGIN; y += 30;
     x += display_heading("PITCH MODIFIER", x, y) + 30;
-    x += display_option(TextFormat("%.2f", mode_state.sample.pitch_modifier), x, y, row == 3, true) + 30;
-    BIND_LEFT_ON_ROW(3)
-      mode_state.sample.pitch_modifier = fclamp(mode_state.sample.pitch_modifier - 0.05, 0.5, 2.0);
-    BIND_SCROLLUP_ON_ROW(3)
-      mode_state.sample.pitch_modifier = fclamp(mode_state.sample.pitch_modifier - 0.01, 0.5, 2.0);
-    BIND_RIGHT_ON_ROW(3)
-      mode_state.sample.pitch_modifier = fclamp(mode_state.sample.pitch_modifier + 0.05, 0.5, 2.0);
-    BIND_SCROLLDOWN_ON_ROW(3)
-      mode_state.sample.pitch_modifier = fclamp(mode_state.sample.pitch_modifier + 0.01, 0.5, 2.0);
+    x += display_option(TextFormat("%.2f", mode_state.sample.pitch_modifier), x, y, cur_row == 3, true) + 30;
+    update_float_field(3, &mode_state.sample.pitch_modifier, 0.5, 2.0, 0.01, 0.05);
 
     x = MENU_XMARGIN; y += 30;
     x += display_heading("VOLUME MODIFIER", x, y) + 30;
-    x += display_option(TextFormat("%.2f", mode_state.sample.volume_modifier), x, y, row == 4, true) + 30;
-    BIND_LEFT_ON_ROW(4)
-      mode_state.sample.volume_modifier = fclamp(mode_state.sample.volume_modifier - 0.05, 0.5, 2.0);
-    BIND_SCROLLUP_ON_ROW(4)
-      mode_state.sample.volume_modifier = fclamp(mode_state.sample.volume_modifier - 0.01, 0.5, 2.0);
-    BIND_RIGHT_ON_ROW(4)
-      mode_state.sample.volume_modifier = fclamp(mode_state.sample.volume_modifier + 0.05, 0.5, 2.0);
-    BIND_SCROLLDOWN_ON_ROW(4)
-      mode_state.sample.volume_modifier = fclamp(mode_state.sample.volume_modifier + 0.01, 0.5, 2.0);
+    x += display_option(TextFormat("%.2f", mode_state.sample.volume_modifier), x, y, cur_row == 4, true) + 30;
+    update_float_field(3, &mode_state.sample.volume_modifier, 0.5, 2.0, 0.01, 0.05);
 
     x = MENU_XMARGIN; y += 30;
     x += display_heading("PLAY CONTINUOUSLY?", x, y) + 30;
-    x += display_option("YES", x, y, row == 5, mode_state.sample.play_continuously) + 30;
-    x += display_option("NO", x, y, row == 5, !mode_state.sample.play_continuously) + 30;
-    BIND_LEFT_ON_ROW(5)
-      mode_state.sample.play_continuously = true;
-    BIND_RIGHT_ON_ROW(5)
-      mode_state.sample.play_continuously = false;
+    x += display_option("YES", x, y, cur_row == 5, mode_state.sample.play_continuously) + 30;
+    x += display_option("NO", x, y, cur_row == 5, !mode_state.sample.play_continuously) + 30;
+    update_bool_field(5, &mode_state.sample.play_continuously);
 
     x = MENU_XMARGIN; y += 30;
     x += display_heading("STOP ON RELEASE?", x, y) + 30;
-    x += display_option("YES", x, y, row == 6, mode_state.sample.stop_on_release) + 30;
-    x += display_option("NO", x, y, row == 6, !mode_state.sample.stop_on_release) + 30;
-    BIND_LEFT_ON_ROW(6)
-      mode_state.sample.stop_on_release = true;
-    BIND_RIGHT_ON_ROW(6)
-      mode_state.sample.stop_on_release = false;
+    x += display_option("YES", x, y, cur_row == 6, mode_state.sample.stop_on_release) + 30;
+    x += display_option("NO", x, y, cur_row == 6, !mode_state.sample.stop_on_release) + 30;
+    update_bool_field(5, &mode_state.sample.stop_on_release);
+    adsr_submenu(7, &x, &y);
     break;
 
   case MULTISAMPLE:
-    multisample_submenu(&row, &x, &y);
-    break;
+    multisample_submenu(&x, &y);
+    return;  // See below comment
   }
 
+  // The total number of rows under the current instrument type. Note that when
+  // the type is MULTISAMPLE, a more complex system is used where both the
+  // current multisample entry AND the row of that entry are also stored. Hence the
+  // following section is irrelevant.
   int num_rows;
-  switch (instrument.wave_type) {
+  switch (instrument.type) {
   case PULSE: case TRI: case SAW:
-    num_rows = 3;
-    break;
-  case SAMPLE:
     num_rows = 7;
     break;
-  case MULTISAMPLE:
-    num_rows = arrlenu(mode_state.multisample_entries) + 2;
+  case SAMPLE:
+    num_rows = 11;
     break;
+  default: break;  // MULTISAMPLE case is already handled above
   }
 
   if (IsKeyPressed(KEY_UP))
-    row = clamp(row-1, 0, num_rows-1);
+    cur_row = clamp(cur_row-1, 0, num_rows-1);
   if (IsKeyPressed(KEY_DOWN))
-    row = clamp(row+1, 0, num_rows-1);
+    cur_row = clamp(cur_row+1, 0, num_rows-1);
 }
 
 void instrument_mode_gui() {
