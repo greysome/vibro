@@ -5,7 +5,7 @@ static void display_note_text_solo_mode() {
 
   int abs_note = get_cur_note() - 1 + get_cur_actual_octave() * 12;
   int scale_degree = mod(abs_note, 12);
-  const char *note_text;
+  const char *note_text = NULL;
 
 #define match_scale_degree_with_text(n, text)                            \
   if (scale_degree == n)                                                  \
@@ -187,7 +187,7 @@ static void draw_wave_periodic() {
   NoteState *note_states = get_cur_note_states();
 
   for (int note = 0; note < NOTETABLE_SIZE; note++)
-    next_phases[note] = 0;
+    next_phases[note] = start_phase;
 
   for (int i = 0; i < screen_width; i += 1) {
     for (int note = 0; note < NOTETABLE_SIZE; note++) {

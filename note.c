@@ -150,7 +150,7 @@ int get_cur_note_or_prev() {
 
 NoteState get_cur_note_state() {
   int note = get_cur_note();
-  return note == NIL ? NIL : cur_note_states[note];
+  return note == NIL ? IDLE : cur_note_states[note];
 }
 
 bool is_legato() {

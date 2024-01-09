@@ -79,7 +79,7 @@ void update_gliss() {
   float factor = 1.0002;
   if (mouse_dy != 0)
     gliss_modifier /= pow(factor, mouse_dy);
-  gliss_modifier = clamp(gliss_modifier, 0.5, 2);
+  gliss_modifier = fclamp(gliss_modifier, 0.5, 2);
 }
 
 void update_dive() {
@@ -143,7 +143,7 @@ void update_vib() {
 
   // SPACE was just released
   if (prev_space_down && !space_down) {
-    vib_depth = clamp(pow(1.003, frames_space_down), 1, 1.04);
+    vib_depth = fclamp(pow(1.003, frames_space_down), 1, 1.04);
     frames_space_down = 0;
   }
 
@@ -177,7 +177,7 @@ void update_autogliss() {
     gliss_modifier = 1;
     int cur_note_freq = get_note_freq(get_cur_note() - 1, get_cur_actual_octave());
     autogliss_total_frames = fabs(cur_note_freq - autogliss_start_freq) / powf(-prev_mouse_dy, 0.5);
-    autogliss_total_frames = clamp(autogliss_total_frames, 5, 300);
+    autogliss_total_frames = fclamp(autogliss_total_frames, 5, 300);
     autogliss_freq_step = powf(cur_note_freq / autogliss_start_freq, 1.0 / autogliss_total_frames);
     autogliss_frame_counter = 0;
   }

@@ -5,8 +5,8 @@ static float note_vol = 0.5;
 static float actual_vols[NOTETABLE_SIZE] = {0};
 
 void update_note_vol() {
-  note_vol += clamp(mouse_dx * 0.001, -0.01, 0.01);
-  note_vol = clamp(note_vol, 0, 1);
+  note_vol += fclamp(mouse_dx * 0.001, -0.01, 0.01);
+  note_vol = fclamp(note_vol, 0, 1);
   if (is_chord_mode()) return;
 
 #define match_key_to_note_vol(key, vol) \

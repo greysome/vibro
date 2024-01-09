@@ -1,6 +1,5 @@
 #include "synthesise.h"
 
-static float pulse_width = 0.5;
 static float cur_phases[NOTETABLE_SIZE] = {0};
 
 #define NUM_HARMONICS 20
@@ -56,12 +55,10 @@ void write_audio_samples(void *buffer, unsigned int frames) {
   short* d = (short*)buffer;
   float wavbuf[frames];
   float amplitude;
-  static float prev;
 
   for (unsigned int i = 0; i < frames; i++) {
-    prev = amplitude;
     amplitude = get_amplitude(cur_phases);
-    amplitude = clamp(amplitude, -0.5, 0.5);
+    amplitude = fclamp(amplitude, -0.5, 0.5);
     d[i] = (short)(amplitude * pow(2, BIT_DEPTH));
     if (is_recording) {
       // For some reason, these changes need to be made to the

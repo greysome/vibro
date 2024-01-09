@@ -1,6 +1,17 @@
 #include "instrument_mode.h"
+
 #define STB_DS_IMPLEMENTATION
+// Ignore GCC errors when compiling stb_ds.h
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wanalyzer-null-dereference"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wanalyzer-deref-before-check"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wanalyzer-null-argument"
 #include "stb_ds.h"
+#pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
 
 #define MENU_XMARGIN 50
 #define MENU_YMARGIN 50
@@ -170,7 +181,7 @@ void init_sample_fields(Sample *sample) {
 }
 
 void init_instrument() {
-  strncpy(instrument.name, "Instrument 1", 12);
+  strcpy(instrument.name, "Instrument 1");
   instrument.wave_type = MULTISAMPLE;
   instrument.pulse_width = 0.5;
   instrument.tri_nes_style = false;
@@ -229,7 +240,7 @@ void commit_instrument_mode_changes() {
     }
   }
   else if (instrument.wave_type == MULTISAMPLE) {
-    for (int i = 0; i < arrlenu(mode_state.multisample_entries); i++) {
+    for (int i = 0; i < (int)arrlenu(mode_state.multisample_entries); i++) {
       MultisampleEntry entry = mode_state.multisample_entries[i];
       if (entry.note != NIL) {
 	instrument.samples[entry.note] = entry.sample;
@@ -253,16 +264,16 @@ static void multisample_submenu(int *row, int *x, int *y) {
   if (IsKeyPressed(KEY_RIGHT))
     mode_state.selected_column = clamp(mode_state.selected_column+1, 0, 3);
 
-  int len = arrlenu(mode_state.multisample_entries);
+  int num_entries = arrlenu(mode_state.multisample_entries);
   int selected_entry = *row - 2;
 
-  if (selected_entry >= 0 && selected_entry < arrlenu(mode_state.multisample_entries)) {
+  if (selected_entry >= 0 && selected_entry < num_entries) {
     if (mode_state.selected_column == 0) {  // KEYBIND
       int pressed_char = GetCharPressed();
       int note = char_to_note(pressed_char);
       if (note != NIL) {
 	bool already_bound = false;
-	for (int i = 0; i < len; i++) {
+	for (int i = 0; i < num_entries; i++) {
 	  if (note == mode_state.multisample_entries[i].note) {
 	    already_bound = true;
 	    break;
@@ -288,16 +299,16 @@ static void multisample_submenu(int *row, int *x, int *y) {
     }
   }
 
-  if (arrlenu(mode_state.multisample_entries) == 0) {
+  if (num_entries == 0) {
     add_multisample_entry();
     *row = arrlenu(mode_state.multisample_entries) + 1;
   }
-  for (int i = 0; i < arrlenu(mode_state.multisample_entries); i++) {
+  for (int i = 0; i < num_entries; i++) {
     MultisampleEntry entry = mode_state.multisample_entries[i];
     *x += display_heading("BIND", *x, *y) + 30;
     char *chars = note_to_chars(entry.note);
     if (chars == NULL)
-      chars = "NA\0";
+      chars = "NA";
     *x += display_option(chars, *x, *y, selected_entry == i && mode_state.selected_column == 0, true) + 30;
     *x += display_heading("TO", *x, *y) + 30;
     *x += display_text_field(mode_state.multisample_entries[i].sample.path, *x, *y, selected_entry == i && mode_state.selected_column == 1) + 60;
@@ -334,13 +345,13 @@ static void menu() {
     x += display_heading("PULSE WIDTH", x, y) + 30;
     x += display_option(TextFormat("%d%%", (int)(instrument.pulse_width*100)), x, y, row == 2, true) + 30;
     BIND_LEFT_ON_ROW(2)
-      instrument.pulse_width = clamp(instrument.pulse_width-0.05, 0.05, 0.95);
+      instrument.pulse_width = fclamp(instrument.pulse_width-0.05, 0.05, 0.95);
     BIND_SCROLLUP_ON_ROW(2)
-      instrument.pulse_width = clamp(instrument.pulse_width-0.05, 0.05, 0.95);
+      instrument.pulse_width = fclamp(instrument.pulse_width-0.05, 0.05, 0.95);
     BIND_RIGHT_ON_ROW(2)
-      instrument.pulse_width = clamp(instrument.pulse_width+0.05, 0.05, 0.95);
+      instrument.pulse_width = fclamp(instrument.pulse_width+0.05, 0.05, 0.95);
     BIND_SCROLLDOWN_ON_ROW(2)
-      instrument.pulse_width = clamp(instrument.pulse_width+0.05, 0.05, 0.95);
+      instrument.pulse_width = fclamp(instrument.pulse_width+0.05, 0.05, 0.95);
     break;
 
   case TRI:
@@ -371,25 +382,25 @@ static void menu() {
     x += display_heading("PITCH MODIFIER", x, y) + 30;
     x += display_option(TextFormat("%.2f", mode_state.sample.pitch_modifier), x, y, row == 3, true) + 30;
     BIND_LEFT_ON_ROW(3)
-      mode_state.sample.pitch_modifier = clamp(mode_state.sample.pitch_modifier - 0.05, 0.5, 2.0);
+      mode_state.sample.pitch_modifier = fclamp(mode_state.sample.pitch_modifier - 0.05, 0.5, 2.0);
     BIND_SCROLLUP_ON_ROW(3)
-      mode_state.sample.pitch_modifier = clamp(mode_state.sample.pitch_modifier - 0.01, 0.5, 2.0);
+      mode_state.sample.pitch_modifier = fclamp(mode_state.sample.pitch_modifier - 0.01, 0.5, 2.0);
     BIND_RIGHT_ON_ROW(3)
-      mode_state.sample.pitch_modifier = clamp(mode_state.sample.pitch_modifier + 0.05, 0.5, 2.0);
+      mode_state.sample.pitch_modifier = fclamp(mode_state.sample.pitch_modifier + 0.05, 0.5, 2.0);
     BIND_SCROLLDOWN_ON_ROW(3)
-      mode_state.sample.pitch_modifier = clamp(mode_state.sample.pitch_modifier + 0.01, 0.5, 2.0);
+      mode_state.sample.pitch_modifier = fclamp(mode_state.sample.pitch_modifier + 0.01, 0.5, 2.0);
 
     x = MENU_XMARGIN; y += 30;
     x += display_heading("VOLUME MODIFIER", x, y) + 30;
     x += display_option(TextFormat("%.2f", mode_state.sample.volume_modifier), x, y, row == 4, true) + 30;
     BIND_LEFT_ON_ROW(4)
-      mode_state.sample.volume_modifier = clamp(mode_state.sample.volume_modifier - 0.05, 0.5, 2.0);
+      mode_state.sample.volume_modifier = fclamp(mode_state.sample.volume_modifier - 0.05, 0.5, 2.0);
     BIND_SCROLLUP_ON_ROW(4)
-      mode_state.sample.volume_modifier = clamp(mode_state.sample.volume_modifier - 0.01, 0.5, 2.0);
+      mode_state.sample.volume_modifier = fclamp(mode_state.sample.volume_modifier - 0.01, 0.5, 2.0);
     BIND_RIGHT_ON_ROW(4)
-      mode_state.sample.volume_modifier = clamp(mode_state.sample.volume_modifier + 0.05, 0.5, 2.0);
+      mode_state.sample.volume_modifier = fclamp(mode_state.sample.volume_modifier + 0.05, 0.5, 2.0);
     BIND_SCROLLDOWN_ON_ROW(4)
-      mode_state.sample.volume_modifier = clamp(mode_state.sample.volume_modifier + 0.01, 0.5, 2.0);
+      mode_state.sample.volume_modifier = fclamp(mode_state.sample.volume_modifier + 0.01, 0.5, 2.0);
 
     x = MENU_XMARGIN; y += 30;
     x += display_heading("PLAY CONTINUOUSLY?", x, y) + 30;

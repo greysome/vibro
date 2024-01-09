@@ -15,7 +15,7 @@ An instrument controlled by computer keyboard and mouse.
 
 ## Global controls
 
-- `SHIFT-LEFT/RIGHT` to switch between instrument 
+- `SHIFT-LEFT/RIGHT` to switch between instrument and note mode
 
 ## Play mode controls
 
@@ -37,12 +37,13 @@ An instrument controlled by computer keyboard and mouse.
 ## Instrument mode controls
 
 - Navigate using arrow keys
-- For text fields: only backspace and DEL are supported
+- For text fields: only `backspace` and `DEL` (to clear entire field) are supported
 - For value fields (e.g. pitch modifier): use left/right arrow keys for coarse changes, mouse scrollwheel for fine changes
+- Press `ENTER` to carry out certain options (like ADD/DELETE in the multisample submenu)
 
 ## Credits
 
 I'd like to thank the following libraries for letting me focus on the application logic:
 
-- Raylib by raysan5
+- Raylib by Ramon Santamaria
 - stb_ds.h by Sean Barrett
