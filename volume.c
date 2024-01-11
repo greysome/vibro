@@ -27,7 +27,7 @@ void update_note_vol() {
 
 void apply_adsr() {
   static ADSRState adsr_states[NOTETABLE_SIZE] = {0};
-  Instrument instrument = get_instrument();
+  Instrument instrument = get_cur_instrument();
   static float release_peaks[NOTETABLE_SIZE] = {0};  // Value of actualvol right when release starts
 
   for (int note = 0; note < NOTETABLE_SIZE; note++) {

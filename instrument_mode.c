@@ -33,9 +33,24 @@ typedef struct {
   MultisampleEntry *multisample_entries;
 } InstrumentModeState;
 
-static Instrument instrument;
 static InstrumentModeState mode_state;
 static int cur_row = 0;  // Current row of the GUI
+
+static Instrument *instruments;
+static int cur_instrument_idx = 0;
+
+int get_cur_instrument_idx() {
+  return cur_instrument_idx;
+}
+
+int get_num_instruments() {
+  return (int)arrlenu(instruments);
+}
+
+Instrument get_cur_instrument() {
+  assert(get_num_instruments() > cur_instrument_idx);
+  return instruments[cur_instrument_idx];
+}
 
 static int display_heading(const char *text, int x, int y) {
   return DrawAndMeasureShadowedText(text, x, y, 20, HEADING_COLOR);
@@ -50,9 +65,9 @@ static int display_option(const char *text, int x, int y, bool should_underline,
   return length;
 }
 
-static int display_text_field(char *str, int x, int y, bool should_update) {
+static int display_text_field(char *str, int x, int y, bool should_update, bool selected) {
   int char_pos = clamp(strlen(str), 0, MAX_STR_LEN);
-  int length = display_option(char_pos == 0 ? "NA" : str, x, y, should_update, true);
+  int length = display_option(char_pos == 0 ? "NA" : str, x, y, should_update, selected);
   if (should_update) {
     int pressed_char = GetCharPressed();
     if (32 <= pressed_char && pressed_char <= 126)
@@ -186,22 +201,43 @@ static void init_sample_fields(Sample *sample) {
   sample->data = NULL;
 }
 
-void init_instrument() {
-  strcpy(instrument.name, "Instrument 1");
-  instrument.type = PULSE;
-  init_adsr_params(&instrument.adsr);
-  instrument.pulse_width = 0.5;
-  instrument.tri_nes_style = false;
-  instrument.saw_nes_style = false;
+void init_instrument(Instrument *instrument, int num) {
+  strcpy(instrument->name, TextFormat("Instrument %d", num));
+  instrument->type = PULSE;
+  init_adsr_params(&instrument->adsr);
+  instrument->pulse_width = 0.5;
+  instrument->tri_nes_style = false;
+  instrument->saw_nes_style = false;
   for (int i = 0; i < NOTETABLE_SIZE; i++)
-    init_sample_fields(&instrument.samples[i]);
+    init_sample_fields(&instrument->samples[i]);
 }
 
-void load_instrument_mode_state() {
+void add_instrument() {
+  Instrument instrument;
+  init_instrument(&instrument, get_num_instruments()+1);
+  arrput(instruments, instrument);
+}
+
+static void delete_instrument(int instrument_num) {
+  cleanup_instrument(instrument_num);
+  arrdel(instruments, instrument_num);
+}
+
+void select_previous_instrument() {
+  cur_instrument_idx = clamp(cur_instrument_idx-1, 0, get_num_instruments()-1);
+}
+
+void select_next_instrument() {
+  cur_instrument_idx = clamp(cur_instrument_idx+1, 0, get_num_instruments()-1);
+}
+
+void load_instrument_mode_state(int instrument_num) {
+  Instrument instrument = instruments[instrument_num];
   mode_state.sample = instrument.samples[0];
 
   if (arrlenu(mode_state.multisample_entries) > 0)
     arrfree(mode_state.multisample_entries);
+
   for (int note = 0; note < NOTETABLE_SIZE; note++) {
     Sample sample = instrument.samples[note];
     if (strnlen(sample.path, MAX_STR_LEN) == 0)
@@ -211,7 +247,8 @@ void load_instrument_mode_state() {
   }
 }
 
-void cleanup_instrument() {
+void cleanup_instrument(int instrument_num) {
+  Instrument instrument = instruments[instrument_num];
   for (int note = 0; note < NOTETABLE_SIZE; note++) {
     Sample sample = instrument.samples[note];
     if (!sample.is_ready)
@@ -222,8 +259,13 @@ void cleanup_instrument() {
       UnloadSound(instrument.samples[note].sound);
       UnloadWaveSamples((float *)instrument.samples[note].data);
     }
-    init_sample_fields(&instrument.samples[note]);
+    init_sample_fields(&instruments[instrument_num].samples[note]);
   }
+}
+
+void cleanup_instruments() {
+  for (int i = 0; i < get_num_instruments(); i++)
+    cleanup_instrument(i);
 }
 
 void cleanup_instrument_mode_state() {
@@ -231,31 +273,36 @@ void cleanup_instrument_mode_state() {
     arrfree(mode_state.multisample_entries);
 }
 
-void commit_instrument_mode_changes() {
-  cleanup_instrument();
-  if (instrument.type == SAMPLE) {
-    instrument.samples[0] = mode_state.sample;
-    populate_sample_data(&instrument.samples[0]);
+static void load_instrument(Instrument *instrument) {
+  if (instrument->type == SAMPLE) {
+    instrument->samples[0] = mode_state.sample;
+    populate_sample_data(&instrument->samples[0]);
     // Make sample aliases
-    if (instrument.samples[0].is_ready) {
+    if (instrument->samples[0].is_ready) {
       for (int note = 1; note < NOTETABLE_SIZE; note++) {
 	// Copy all fields over except make the sound an alias
-	instrument.samples[note] = instrument.samples[0];
-	instrument.samples[note].is_alias = true;
-	instrument.samples[note].sound = LoadSoundAlias(instrument.samples[0].sound);
+	instrument->samples[note] = instrument->samples[0];
+	instrument->samples[note].is_alias = true;
+	instrument->samples[note].sound = LoadSoundAlias(instrument->samples[0].sound);
       }
     }
   }
-  else if (instrument.type == MULTISAMPLE) {
+  else if (instrument->type == MULTISAMPLE) {
     for (int i = 0; i < (int)arrlenu(mode_state.multisample_entries); i++) {
       MultisampleEntry entry = mode_state.multisample_entries[i];
       if (entry.note != NIL) {
-	instrument.samples[entry.note] = entry.sample;
-	populate_sample_data(&instrument.samples[entry.note]);
+	instrument->samples[entry.note] = entry.sample;
+	populate_sample_data(&instrument->samples[entry.note]);
       }
     }
     arrfree(mode_state.multisample_entries);
   }
+}
+
+void commit_instrument_mode_changes() {
+  cleanup_instruments();
+  for (int i = 0; i < get_num_instruments(); i++)
+    load_instrument(&instruments[i]);
 }
 
 static void add_multisample_entry() {
@@ -282,6 +329,10 @@ static int cur_entryrow = NIL;
 //        0            1              2      3       4
 //        ^ cur_col
 static int cur_col = 0;
+
+void reset_entryrow() {
+  cur_entryrow = cur_entryrow == NIL ? NIL : 0;
+}
 
 static void multisample_update_bool_field(int entry, int entry_row, bool *field) {
   BIND_LEFT_ON_ENTRY_ROW(entry, entry_row)
@@ -345,7 +396,13 @@ static void multisample_submenu(int *x, int *y) {
 	if (IsKeyPressed(KEY_ENTER))
 	  mode_state.multisample_entries[cur_entry].is_expanded = !mode_state.multisample_entries[cur_entry].is_expanded;
       }
-      else if (cur_col == 3) {  // DELETE
+      else if (cur_col == 3) {  // ADD
+	if (IsKeyPressed(KEY_ENTER)) {
+	  add_multisample_entry();
+	  //cur_row = arrlenu(mode_state.multisample_entries) + 1;
+	}
+      }
+      else if (cur_col == 4) {  // DELETE
 	if (IsKeyPressed(KEY_ENTER)) {
 	  arrdel(mode_state.multisample_entries, cur_entry);
 	  if (cur_entry > 0) {
@@ -355,18 +412,11 @@ static void multisample_submenu(int *x, int *y) {
 	  cur_entryrow = 0;
 	}
       }
-      else if (cur_col == 4) {  // ADD
-	if (IsKeyPressed(KEY_ENTER)) {
-	  add_multisample_entry();
-	  //cur_row = arrlenu(mode_state.multisample_entries) + 1;
-	}
-      }
     }
   }
 
-  if (num_entries == 0) {
+  if (num_entries == 0)
     add_multisample_entry();
-  }
 
   // Besides storing the total number of rows, this also keeps track of the current row
   // when building the GUI.
@@ -381,10 +431,10 @@ static void multisample_submenu(int *x, int *y) {
       chars = "NA";
     *x += display_option(chars, *x, *y, ON_ENTRY_AND_ROW(i, 0) && cur_col == 0, true) + 30;
     *x += display_heading("TO", *x, *y) + 30;
-    *x += display_text_field(mode_state.multisample_entries[i].sample.path, *x, *y, ON_ENTRY_AND_ROW(i, 0) && cur_col == 1) + 60;
+    *x += display_text_field(mode_state.multisample_entries[i].sample.path, *x, *y, ON_ENTRY_AND_ROW(i, 0) && cur_col == 1, true) + 60;
     *x += display_option(entry.is_expanded ? "-" : "+", *x, *y, ON_ENTRY_AND_ROW(i, 0) && cur_col == 2, true) + 30;
-    *x += display_option("DELETE", *x, *y, ON_ENTRY_AND_ROW(i, 0) && cur_col == 3, true) + 30;
-    *x += display_option("ADD", *x, *y, ON_ENTRY_AND_ROW(i, 0) && cur_col == 4, true) + 30;
+    *x += display_option("ADD", *x, *y, ON_ENTRY_AND_ROW(i, 0) && cur_col == 3, true) + 30;
+    *x += display_option("DELETE", *x, *y, ON_ENTRY_AND_ROW(i, 0) && cur_col == 4, true) + 30;
     if (!entry.is_expanded) {
       *x = MENU_XMARGIN; *y += 30;
     }
@@ -442,7 +492,6 @@ static void multisample_submenu(int *x, int *y) {
   bool is_expanded = false;
   if (cur_entry != NIL)
     is_expanded = mode_state.multisample_entries[cur_entry].is_expanded;
-  //printf("row %d/%d, %d:%d out of %d, %d\n", cur_row, num_rows, cur_entry, cur_entryrow, num_entries, is_expanded);
 
   if (IsKeyPressed(KEY_UP) && !SHIFT_DOWN) {
     if (cur_entry == 0 && cur_entryrow == 0) {
@@ -455,10 +504,10 @@ static void multisample_submenu(int *x, int *y) {
     else if (cur_entryrow > 0) {
       cur_entryrow--;
     }
-    cur_row = clamp(cur_row-1, 0, num_rows-1);
+    cur_row = clamp(cur_row-1, -1, num_rows-1);
   }
   if (IsKeyPressed(KEY_DOWN) && !SHIFT_DOWN) {
-    if (cur_row == 0) {
+    if (cur_row < 1) {
       cur_entry = NIL; cur_entryrow = NIL;
     }
     else if (cur_row == 1) {
@@ -476,7 +525,7 @@ static void multisample_submenu(int *x, int *y) {
 	cur_entry++; cur_entryrow = 0;
       }
     }
-    cur_row = clamp(cur_row+1, 0, num_rows-1);
+    cur_row = clamp(cur_row+1, -1, num_rows-1);
   }
 }
 
@@ -515,75 +564,101 @@ static void update_float_field(int row, float *field, float min, float max, floa
 }
 
 static void adsr_submenu(int start_row, int *x, int *y) {
+  Instrument instrument = get_cur_instrument();
   *x = MENU_XMARGIN; *y += 50;
   *x += display_heading("ATTACK FRAMES", *x, *y) + 30;
   *x += display_option(TextFormat("%d", instrument.adsr.attack_frames), *x, *y, cur_row == start_row, true) + 30;
   *x = MENU_XMARGIN; *y += 30;
-  update_int_field(start_row, &instrument.adsr.attack_frames, 0, 100, 1, 5);
+  update_int_field(start_row, &instruments[cur_instrument_idx].adsr.attack_frames, 0, 100, 1, 5);
 
   *x += display_heading("DECAY FRAMES", *x, *y) + 30;
   *x += display_option(TextFormat("%d", instrument.adsr.decay_frames), *x, *y, cur_row == start_row+1, true) + 30;
   *x = MENU_XMARGIN; *y += 30;
-  update_int_field(start_row+1, &instrument.adsr.decay_frames, 0, 100, 1, 5);
+  update_int_field(start_row+1, &instruments[cur_instrument_idx].adsr.decay_frames, 0, 100, 1, 5);
 
   *x += display_heading("SUSTAIN VOL", *x, *y) + 30;
   *x += display_option(TextFormat("%d%%", (int)(instrument.adsr.sustain_vol*100)), *x, *y, cur_row == start_row+2, true) + 30;
   *x = MENU_XMARGIN; *y += 30;
-  update_float_field(start_row+2, &instrument.adsr.sustain_vol, 0, 1, 0.01, 0.05);
+  update_float_field(start_row+2, &instruments[cur_instrument_idx].adsr.sustain_vol, 0, 1, 0.01, 0.05);
 
   *x += display_heading("RELEASE FRAMES", *x, *y) + 30;
   *x += display_option(TextFormat("%d", instrument.adsr.release_frames), *x, *y, cur_row == start_row+3, true) + 30;
   *x = MENU_XMARGIN; *y += 30;
-  update_int_field(start_row+3, &instrument.adsr.release_frames, 0, 100, 1, 5);
+  update_int_field(start_row+3, &instruments[cur_instrument_idx].adsr.release_frames, 0, 100, 1, 5);
 }
 
 static void menu() {
+  //printf("row %d, entry %d:%d, cur_col %d\n", cur_row, cur_entry, cur_entryrow, cur_col);
   int x = MENU_XMARGIN;
   int y = MENU_YMARGIN;
 
-  x += display_heading("NAME", x, y) + 30;
-  x += display_text_field(instrument.name, x, y, cur_row == 0);
+  // I start from row -1 because this was the last row that I added and I am too lazy to change the numbers of the other rows
+  for (int i = 0; i < get_num_instruments(); i++)
+    x += display_text_field(instruments[i].name, x, y, cur_row == -1 && cur_instrument_idx == i, cur_instrument_idx == i) + 30;
+  BIND_LEFT_ON_ROW(-1)
+    select_previous_instrument();
+  BIND_RIGHT_ON_ROW(-1)
+    select_next_instrument();
+  x = MENU_XMARGIN; y += 30;
+
+  static int first_row_option = 0;
+  x += display_option("ADD", x, y, cur_row == 0 && first_row_option == 0, true) + 30;
+  x += display_option("DELETE", x, y, cur_row == 0 && first_row_option == 1, true) + 30;
+  BIND_LEFT_ON_ROW(0)
+    first_row_option = 0;
+  BIND_RIGHT_ON_ROW(0)
+    first_row_option = 1;
+  if (cur_row == 0 && IsKeyPressed(KEY_ENTER)) {
+    if (first_row_option == 0) {
+      add_instrument();
+      cur_instrument_idx++;
+    }
+    else if (first_row_option == 1 && get_num_instruments() >= 2) {
+      delete_instrument(cur_instrument_idx);
+      select_previous_instrument();
+    }
+  }
 
   x = MENU_XMARGIN; y += 30;
-  x += display_heading("WAVE", x, y) + 30;
-  x += display_option("PULSE", x, y, cur_row == 1, instrument.type == PULSE) + 30;
-  x += display_option("TRI", x, y, cur_row == 1, instrument.type == TRI) + 30;
-  x += display_option("SAW", x, y, cur_row == 1, instrument.type == SAW) + 30;
-  x += display_option("SAMPLE", x, y, cur_row == 1, instrument.type == SAMPLE) + 30;
-  x += display_option("MULTISAMPLE", x, y, cur_row == 1, instrument.type == MULTISAMPLE) + 30;
+  x += display_heading("TYPE", x, y) + 30;
+  x += display_option("PULSE", x, y, cur_row == 1, get_cur_instrument().type == PULSE) + 30;
+  x += display_option("TRI", x, y, cur_row == 1, get_cur_instrument().type == TRI) + 30;
+  x += display_option("SAW", x, y, cur_row == 1, get_cur_instrument().type == SAW) + 30;
+  x += display_option("SAMPLE", x, y, cur_row == 1, get_cur_instrument().type == SAMPLE) + 30;
+  x += display_option("MULTISAMPLE", x, y, cur_row == 1, get_cur_instrument().type == MULTISAMPLE) + 30;
   BIND_LEFT_ON_ROW(1)
-    instrument.type = clamp(instrument.type-1, 0, 4);
+    instruments[cur_instrument_idx].type = clamp(get_cur_instrument().type-1, 0, 4);
   BIND_RIGHT_ON_ROW(1)
-    instrument.type = clamp(instrument.type+1, 0, 4);
+    instruments[cur_instrument_idx].type = clamp(get_cur_instrument().type+1, 0, 4);
 
   x = MENU_XMARGIN; y += 30;
-  switch (instrument.type) {
+  switch (instruments[cur_instrument_idx].type) {
   case PULSE:
     x += display_heading("PULSE WIDTH", x, y) + 30;
-    x += display_option(TextFormat("%d%%", (int)(instrument.pulse_width*100)), x, y, cur_row == 2, true) + 30;
-    update_float_field(2, &instrument.pulse_width, 0.05, 0.95, 0.01, 0.05);
+    x += display_option(TextFormat("%d%%", (int)(get_cur_instrument().pulse_width*100)), x, y, cur_row == 2, true) + 30;
+    update_float_field(2, &instruments[cur_instrument_idx].pulse_width, 0.05, 0.95, 0.01, 0.05);
     adsr_submenu(3, &x, &y);
     break;
 
   case TRI:
     x += display_heading("NES STYLE?", x, y) + 30;
-    x += display_option("YES", x, y, cur_row == 2, instrument.tri_nes_style) + 30;
-    x += display_option("NO", x, y, cur_row == 2, !instrument.tri_nes_style) + 30;
-    update_bool_field(2, &instrument.tri_nes_style);
+    x += display_option("YES", x, y, cur_row == 2, get_cur_instrument().tri_nes_style) + 30;
+    x += display_option("NO", x, y, cur_row == 2, !get_cur_instrument().tri_nes_style) + 30;
+    update_bool_field(2, &instruments[cur_instrument_idx].tri_nes_style);
     adsr_submenu(3, &x, &y);
     break;
 
   case SAW:
     x += display_heading("NES STYLE?", x, y) + 30;
-    x += display_option("YES", x, y, cur_row == 2, instrument.saw_nes_style) + 30;
-    x += display_option("NO", x, y, cur_row == 2, !instrument.saw_nes_style) + 30;
-    update_bool_field(2, &instrument.saw_nes_style);
+    x += display_option("YES", x, y, cur_row == 2, get_cur_instrument().saw_nes_style) + 30;
+    x += display_option("NO", x, y, cur_row == 2, !get_cur_instrument().saw_nes_style) + 30;
+    update_bool_field(2, &instruments[cur_instrument_idx].saw_nes_style);
     adsr_submenu(3, &x, &y);
     break;
 
   case SAMPLE:
     x += display_heading("SAMPLE FILE", x, y) + 30;
-    x += display_text_field(mode_state.sample.path, x, y, cur_row == 2) + 30;
+    x += display_text_field(mode_state.sample.path, x, y, cur_row == 2, true) + 30;
 
     x = MENU_XMARGIN; y += 30;
     x += display_heading("PITCH MODIFIER", x, y) + 30;
@@ -593,7 +668,7 @@ static void menu() {
     x = MENU_XMARGIN; y += 30;
     x += display_heading("VOLUME MODIFIER", x, y) + 30;
     x += display_option(TextFormat("%.2f", mode_state.sample.volume_modifier), x, y, cur_row == 4, true) + 30;
-    update_float_field(3, &mode_state.sample.volume_modifier, 0.5, 2.0, 0.01, 0.05);
+    update_float_field(4, &mode_state.sample.volume_modifier, 0.5, 2.0, 0.01, 0.05);
 
     x = MENU_XMARGIN; y += 30;
     x += display_heading("PLAY CONTINUOUSLY?", x, y) + 30;
@@ -605,7 +680,8 @@ static void menu() {
     x += display_heading("STOP ON RELEASE?", x, y) + 30;
     x += display_option("YES", x, y, cur_row == 6, mode_state.sample.stop_on_release) + 30;
     x += display_option("NO", x, y, cur_row == 6, !mode_state.sample.stop_on_release) + 30;
-    update_bool_field(5, &mode_state.sample.stop_on_release);
+    update_bool_field(6, &mode_state.sample.stop_on_release);
+
     adsr_submenu(7, &x, &y);
     break;
 
@@ -619,7 +695,7 @@ static void menu() {
   // current multisample entry AND the row of that entry are also stored. Hence the
   // following section is irrelevant.
   int num_rows;
-  switch (instrument.type) {
+  switch (get_cur_instrument().type) {
   case PULSE: case TRI: case SAW:
     num_rows = 7;
     break;
@@ -630,9 +706,9 @@ static void menu() {
   }
 
   if (IsKeyPressed(KEY_UP))
-    cur_row = clamp(cur_row-1, 0, num_rows-1);
+    cur_row = clamp(cur_row-1, -1, num_rows-1);
   if (IsKeyPressed(KEY_DOWN))
-    cur_row = clamp(cur_row+1, 0, num_rows-1);
+    cur_row = clamp(cur_row+1, -1, num_rows-1);
 }
 
 void instrument_mode_gui() {
@@ -641,8 +717,4 @@ void instrument_mode_gui() {
   DrawShadowedTextSE("INSTRUMENT", screen_width-XMARGIN-35, screen_height-YMARGIN-20, 60, WHITE);
   menu();
   EndDrawing();
-}
-
-Instrument get_instrument() {
-  return instrument;
 }

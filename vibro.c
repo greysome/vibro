@@ -27,7 +27,7 @@ int main() {
   SetTargetFPS(FPS);
 
   GuiMode gui_mode = PLAY_MODE;
-  init_instrument();
+  add_instrument();
 
   while (!WindowShouldClose()) {
     screen_width = GetScreenWidth();
@@ -47,11 +47,13 @@ int main() {
 #define SHIFT_LEFT (SHIFT_DOWN && IsKeyPressed(KEY_LEFT))
 #define SHIFT_RIGHT (SHIFT_DOWN && IsKeyPressed(KEY_RIGHT))
 
+    // Do stuff before switching modes
     if (SHIFT_LEFT || SHIFT_RIGHT) {
       if (gui_mode == INSTRUMENT_MODE)
 	commit_instrument_mode_changes();
     }
 
+    // Decide mode to switch to
     if (SHIFT_LEFT) {
       if (gui_mode == PLAY_MODE)
 	gui_mode = INSTRUMENT_MODE;
@@ -65,12 +67,21 @@ int main() {
 	gui_mode++;
     }
 
+    // Do stuff after switching modes
     if (SHIFT_LEFT || SHIFT_RIGHT) {
       if (gui_mode == INSTRUMENT_MODE) {
 	kill_notes();
 	kill_vols();
-	load_instrument_mode_state();
+	reset_entryrow();
+	load_instrument_mode_state(get_cur_instrument_idx());
       }
+    }
+
+    if (gui_mode == PLAY_MODE) {
+      if (IsKeyPressed(KEY_LEFT))
+	select_previous_instrument();
+      if (IsKeyPressed(KEY_RIGHT))
+	select_next_instrument();
     }
 
     switch (gui_mode) {
@@ -79,7 +90,7 @@ int main() {
     }
   }
 
-  cleanup_instrument();
+  cleanup_instruments();
   if (gui_mode == INSTRUMENT_MODE)
     cleanup_instrument_mode_state();
 

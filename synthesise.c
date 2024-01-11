@@ -34,7 +34,9 @@ float add_synthesise(float phase) {
 }
 
 float get_amplitude(float *phases) {
-  Instrument instrument = get_instrument();
+  if (get_num_instruments() == 0)
+    return 0;
+  Instrument instrument = get_cur_instrument();
   float amplitude = 0;
   float vol = 0;
   float y;

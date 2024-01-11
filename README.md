@@ -20,8 +20,11 @@ An instrument controlled by computer keyboard and mouse.
 
 ## Play mode controls
 
+- `LEFT/RIGHT` to change instrument
+- `TAB` to toggle fullscreen
+
 - `Z S X D C` ... `, L . ; /` are the notes
-- `1 ... 0` for global volume control
+- `1 ... 0` for global volume control (only applicable for solo mode)
 - Move mouse left/right for local volume control
 - Spam `SPACE` for vibrato. How long you press it controls depth, how fast you press it controls speed.
 - Left/right click to temporarily adjust octave
@@ -31,14 +34,13 @@ An instrument controlled by computer keyboard and mouse.
     - Precise glissing: while holding down current note, press the note to gliss to *while* moving mouse up/down
 - `CTRL` to toggle chord mode. Multiple notes can be played at once! (Note autogliss isn't supported)
 - `ALT` for drop effect
-- `TAB` to toggle fullscreen
 - `` ` `` to record
 - For right handers, I recommended the mouse be placed to the left of the keyboard.
 
 ## Instrument mode controls
 
 - Navigate using arrow keys
-- For text fields: only `backspace` and `DEL` (to clear entire field) are supported
+- For text fields: only `BACKSPACE` and `DEL` (to clear entire field) are supported
 - For value fields (e.g. pitch modifier): use left/right arrow keys for coarse changes, mouse scrollwheel for fine changes
 - Press `ENTER` to carry out certain options (like ADD/DELETE in the multisample submenu)
 

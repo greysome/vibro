@@ -1,6 +1,7 @@
 #ifndef _INSTRUMENT_MODE
 #define _INSTRUMENT_MODE
 
+#include <assert.h>
 #include <string.h>
 #include "util.h"
 #include "raylib.h"
@@ -54,12 +55,19 @@ typedef struct {
   Sample samples[NOTETABLE_SIZE];
 } Instrument;
 
-void instrument_mode_gui();
-void init_instrument();
-void load_instrument_mode_state();
-void cleanup_instrument();
+int get_cur_instrument_idx();
+Instrument get_cur_instrument();
+int get_num_instruments();
+void init_instrument(Instrument *instrument, int num);
+void add_instrument();
+void select_previous_instrument();
+void select_next_instrument();
+void load_instrument_mode_state(int instrument_num);
+void cleanup_instrument(int instrument_num);
+void cleanup_instruments();
 void cleanup_instrument_mode_state();
 void commit_instrument_mode_changes();
-Instrument get_instrument();
+void reset_entryrow();
+void instrument_mode_gui();
 
 #endif
