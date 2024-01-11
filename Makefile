@@ -10,7 +10,7 @@ else
 	OUT = vibro
 endif
 
-OBJS = tinywav/tinywav.o util.o globals.o synthesise.o octave.o note.o volume.o freq.o gui.o sample.o play_mode.o instrument_mode.o
+OBJS = tinywav/tinywav.o util.o globals.o synthesise.o octave.o note.o volume.o freq.o gui.o sample.o instrument.o play_mode.o instrument_mode.o
 
 all: $(OBJS)
 	$(CC) vibro.c $? -o $(OUT) -Wall $(CFLAGS) $(LIBS) -Llib

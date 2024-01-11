@@ -1,6 +1,6 @@
 #include "sample.h"
 
-static SamplePlaybackState playback_states[MULTISAMPLE_MAX];
+static SamplePlaybackState playback_states[NOTETABLE_SIZE];
 
 static void reset_sample_playback_state(int note) {
   playback_states[note].pitch_modifier = 1;

@@ -5,7 +5,7 @@
 #include "note.h"
 #include "freq.h"
 #include "volume.h"
-#include "instrument_mode.h"
+#include "instrument.h"
 
 /** For displaying the sample waveform while playing back a sample **/
 typedef struct {

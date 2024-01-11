@@ -124,9 +124,9 @@ static void draw_straight_line() {
 }
 
 static void draw_wave_sample(Sample *samples) {
-  for (int i = 0; i < MULTISAMPLE_MAX; i++) {
-    if (strnlen(samples[i].path, MAX_STR_LEN) > 0 && !samples[i].is_ready) {
-      DrawShadowedTextCenter(TextFormat("Sample not found: %s", samples[i].path), screen_width/2, screen_height/2, 40, WHITE);
+  for (int note = 0; note < NOTETABLE_SIZE; note++) {
+    if (strnlen(samples[note].path, MAX_STR_LEN) > 0 && !samples[note].is_ready) {
+      DrawShadowedTextCenter(TextFormat("Sample not found: %s", samples[note].path), screen_width/2, screen_height/2, 40, WHITE);
       return;
     }
   }
@@ -214,7 +214,7 @@ static void draw_wave_periodic() {
 }
 
 void draw_wave() {
-  Instrument instrument = get_cur_instrument();
+  Instrument instrument = *get_cur_instrument();
   if (instrument.type == SAMPLE || instrument.type == MULTISAMPLE)
     draw_wave_sample(instrument.samples);
   else
@@ -256,7 +256,7 @@ void play_mode_gui() {
   update_note_vol();
   apply_adsr();
 
-  Instrument instrument = get_cur_instrument();
+  Instrument instrument = *get_cur_instrument();
   if (instrument.type == SAMPLE) {
     for (int note = 0; note < NOTETABLE_SIZE; note++)
       handle_sample_playback(note, instrument.samples[note]);

@@ -5,7 +5,7 @@
 #include "globals.h"
 #include "note.h"
 #include "util.h"
-#include "instrument_mode.h"
+#include "instrument.h"
 
 typedef enum {
   ATTACK, DECAY, SUSTAIN, RELEASE

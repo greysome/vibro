@@ -6,7 +6,7 @@
 #include "util.h"
 #include "freq.h"
 #include "volume.h"
-#include "instrument_mode.h"
+#include "instrument.h"
 
 // How loud should this program be compared to the actual
 // system volume, from 0 to 1?
