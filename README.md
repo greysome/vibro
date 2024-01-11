@@ -11,8 +11,7 @@ An instrument controlled by computer keyboard and mouse.
 - You can load in samples!
 - ADSR envelopes!
 - Sound recording!
-- ~~Additive synthesis (under the sine instrument)~~
-(The underlying functionality is already supported in the code, I just need to cook up a nice GUI for these)
+- Additive synthesis (under the sine instrument)
 
 ## Global controls
 
