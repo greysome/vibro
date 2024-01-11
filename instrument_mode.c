@@ -584,6 +584,7 @@ static void menu() {
       update_float_field(2+i, &instrument->sine_coeffs[i], 0.00, 1.00, 0.01, 0.05);
       x = MENU_XMARGIN; y += 30;
     }
+    y -= 30;
     adsr_submenu(2+NUM_HARMONICS, &x, &y);
     break;
 
