@@ -5,9 +5,10 @@
 #include "note.h"
 
 #define MAX_STR_LEN 100
+#define NUM_HARMONICS 8
 
 typedef enum {
-  PULSE, TRI, SAW, SAMPLE, MULTISAMPLE
+  PULSE, TRI, SAW, SINE, SAMPLE, MULTISAMPLE
 } WaveType;
 
 typedef struct {
@@ -45,6 +46,7 @@ typedef struct {
   float pulse_width;
   bool tri_nes_style;
   bool saw_nes_style;
+  float sine_coeffs[NUM_HARMONICS];
 
   Sample samples[NOTETABLE_SIZE];
 } Instrument;

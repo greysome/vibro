@@ -544,12 +544,13 @@ static void menu() {
   x += display_option("PULSE", x, y, cur_row == 1, instrument->type == PULSE) + 30;
   x += display_option("TRI", x, y, cur_row == 1, instrument->type == TRI) + 30;
   x += display_option("SAW", x, y, cur_row == 1, instrument->type == SAW) + 30;
+  x += display_option("SINE", x, y, cur_row == 1, instrument->type == SINE) + 30;
   x += display_option("SAMPLE", x, y, cur_row == 1, instrument->type == SAMPLE) + 30;
   x += display_option("MULTISAMPLE", x, y, cur_row == 1, instrument->type == MULTISAMPLE) + 30;
   BIND_LEFT_ON_ROW(1)
-    instrument->type = clamp(instrument->type-1, 0, 4);
+    instrument->type = clamp(instrument->type-1, 0, 5);
   BIND_RIGHT_ON_ROW(1)
-    instrument->type = clamp(instrument->type+1, 0, 4);
+    instrument->type = clamp(instrument->type+1, 0, 5);
 
   x = MENU_XMARGIN; y += 30;
   switch (instrument->type) {
@@ -574,6 +575,16 @@ static void menu() {
     x += display_option("NO", x, y, cur_row == 2, !instrument->saw_nes_style) + 30;
     update_bool_field(2, &instrument->saw_nes_style);
     adsr_submenu(3, &x, &y);
+    break;
+
+  case SINE:
+    for (int i = 0; i < NUM_HARMONICS; i++) {
+      x += display_heading(TextFormat("HARMONIC %d", i+1), x, y) + 30;
+      x += display_option(TextFormat("%.2f", instrument->sine_coeffs[i]), x, y, cur_row == 2+i, true) + 30;
+      update_float_field(2+i, &instrument->sine_coeffs[i], 0.00, 1.00, 0.01, 0.05);
+      x = MENU_XMARGIN; y += 30;
+    }
+    adsr_submenu(2+NUM_HARMONICS, &x, &y);
     break;
 
   case SAMPLE:
@@ -618,6 +629,9 @@ static void menu() {
   switch (instrument->type) {
   case PULSE: case TRI: case SAW:
     num_rows = 7;
+    break;
+  case SINE:
+    num_rows = 14;
     break;
   case SAMPLE:
     num_rows = 11;

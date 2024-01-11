@@ -2,9 +2,6 @@
 
 static float cur_phases[NOTETABLE_SIZE] = {0};
 
-#define NUM_HARMONICS 20
-static float addsynth_coeffs[NUM_HARMONICS] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-
 float pulse(float phase, float pulse_width) {
   return phase >= pulse_width ? -1 : 1;
 }
@@ -23,12 +20,12 @@ float saw(float phase, bool nes_style) {
   return y;
 }
 
-float add_synthesise(float phase) {
+float sine(float phase, float *sine_coeffs) {
   float output = 0;
   float amplitude = 0;
   for (int i = 0; i < NUM_HARMONICS; i++) {
-    amplitude += addsynth_coeffs[i];
-    output += addsynth_coeffs[i] * sinf(phase * 2 * (i + 1) * PI);
+    amplitude += sine_coeffs[i];
+    output += sine_coeffs[i] * sinf(phase*2*(i+1)*PI);
   }
   return output / amplitude;
 }
@@ -46,6 +43,7 @@ float get_amplitude(float *phases) {
     case PULSE: y = pulse(phases[note], instrument.pulse_width); break;
     case TRI: y = tri(phases[note], instrument.tri_nes_style); break;
     case SAW: y = saw(phases[note], instrument.saw_nes_style); break;
+    case SINE: y = sine(phases[note], instrument.sine_coeffs); break;
     case SAMPLE: case MULTISAMPLE: y = 0; break;
     }
     amplitude += vol * y;

@@ -68,6 +68,9 @@ void init_instrument(Instrument *instrument, int num) {
   instrument->pulse_width = 0.5;
   instrument->tri_nes_style = false;
   instrument->saw_nes_style = false;
+  instrument->sine_coeffs[0] = 1;
+  for (int i = 1; i < NUM_HARMONICS; i++)
+    instrument->sine_coeffs[i] = 0;
   for (int i = 0; i < NOTETABLE_SIZE; i++)
     init_sample_fields(&instrument->samples[i]);
 }
