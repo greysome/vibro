@@ -10,7 +10,7 @@ An instrument controlled by computer keyboard and mouse.
 - Expressive features! (see [Controls](#controls))
 - You can load in samples!
 - ADSR envelopes!
-- Sound recording!
+- Sound recording! (doesn't work for samples unfortunately)
 - Additive synthesis (under the sine instrument)
 
 ## Global controls
