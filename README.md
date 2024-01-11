@@ -17,11 +17,11 @@ An instrument controlled by computer keyboard and mouse.
 ## Global controls
 
 - `SHIFT-LEFT/RIGHT` to switch between instrument and note mode
+- `TAB` to toggle fullscreen
 
 ## Play mode controls
 
 - `LEFT/RIGHT` to change instrument
-- `TAB` to toggle fullscreen
 
 - `Z S X D C` ... `, L . ; /` are the notes
 - `1 ... 0` for global volume control (only applicable for solo mode)
