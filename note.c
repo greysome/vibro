@@ -240,7 +240,15 @@ static void update_note_state_in_chord_mode() {
   }
 }
 
+void update_octaves_on_release() {
+  for (int note = 0; note < NOTETABLE_SIZE; note++) {
+    if (cur_note_states[note] == RELEASED)
+      update_octave_on_release(note);
+  }
+}
+
 void update_note_state() {
   if (is_chord_mode()) update_note_state_in_chord_mode();
   else update_note_state_in_solo_mode();
+  update_octaves_on_release();
 }

@@ -1,6 +1,7 @@
 #ifndef OCTAVE
 #define OCTAVE
 
+#include <assert.h>
 #include "raylib.h"
 #include "globals.h"
 #include "util.h"
@@ -15,5 +16,7 @@ int get_local_octave_modifier();
 int get_note_octave_modifier(int note);
 int get_cur_actual_octave();
 int get_prev_actual_octave();
+int *get_octaves_on_release();
+void update_octave_on_release(int note);
 
 #endif

@@ -5,6 +5,12 @@ static int local_octave_modifier = 0;
 static int prev_global_octave;
 static int prev_local_octave_modifier;
 
+// note.h cannot be included so I'll just redefine the constant here.
+#define NOTETABLE_SIZE 33
+// We store the octaves of the notes when they are released, because the octave
+// of a note in the RELEASE state of the ADSR envelope shouldn't change.
+static int octaves_on_release[NOTETABLE_SIZE];
+
 void update_global_octave() {
   prev_global_octave = global_octave;
   if (IsKeyPressed(KEY_DOWN))
@@ -48,4 +54,13 @@ int get_cur_actual_octave() {
 
 int get_prev_actual_octave() {
   return prev_global_octave + prev_local_octave_modifier;
+}
+
+int *get_octaves_on_release() {
+  return octaves_on_release;
+}
+
+void update_octave_on_release(int note) {
+  assert(note >= 0 && note < NOTETABLE_SIZE);
+  octaves_on_release[note] = get_cur_actual_octave();
 }

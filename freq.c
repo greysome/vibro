@@ -200,8 +200,12 @@ float *get_cur_actual_freqs() {
     freqs[get_cur_note()] = autogliss_start_freq * powf(autogliss_freq_step, autogliss_frame_counter) * vib_modifier;
   }
   else {
-    for (int i = 0; i < NOTETABLE_SIZE; i++)
-      freqs[i] = get_actual_freq(i-1, get_cur_actual_octave());
+    for (int note = 0; note < NOTETABLE_SIZE; note++) {
+      if (get_cur_note_states()[note] == STILLRELEASED)
+	freqs[note] = get_actual_freq(note-1, get_octaves_on_release()[note]);
+      else
+	freqs[note] = get_actual_freq(note-1, get_cur_actual_octave());
+    }
   }
   return freqs;
 }
