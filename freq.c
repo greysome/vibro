@@ -63,8 +63,7 @@ void update_pitch_bend() {
 
 bool is_autoglissing() {
   NoteState s = get_cur_note_state();
-  return is_solo_mode() && autogliss_frame_counter < autogliss_total_frames &&
-    (s == PRESSED || s == HELD);
+  return is_solo_mode() && autogliss_frame_counter < autogliss_total_frames && (s == PRESSED || s == HELD);
 }
 
 void update_gliss() {
@@ -170,13 +169,17 @@ void update_vib() {
 void update_autogliss() {
   // Autogliss is only activated in solo mode when a new note is pressed while glissing on the previous note
   if (is_chord_mode()) return;
+
   if (is_legato() && prev_mouse_dy) {
     no_attack(); // We don't want to attack the new note!
-    autogliss_start_freq = get_actual_freq(get_prev_note() - 1, get_prev_actual_octave());
+    if (is_autoglissing())
+      autogliss_start_freq = get_cur_actual_freqs()[get_prev_note()] * powf(2, get_cur_actual_octave() - get_prev_actual_octave());
+    else
+      autogliss_start_freq = get_actual_freq(get_prev_note() - 1, get_prev_actual_octave());
     // Reset gliss; moving mouse vertically now does nothing until autogliss is complete
     gliss_modifier = 1;
-    int cur_note_freq = get_note_freq(get_cur_note() - 1, get_cur_actual_octave());
-    autogliss_total_frames = fabs(cur_note_freq - autogliss_start_freq) / powf(-prev_mouse_dy, 0.5);
+    float cur_note_freq = get_note_freq(get_cur_note() - 1, get_cur_actual_octave());
+    autogliss_total_frames = fabs(cur_note_freq - autogliss_start_freq) / powf(abs(prev_mouse_dy), 0.5);
     autogliss_total_frames = fclamp(autogliss_total_frames, 5, 300);
     autogliss_freq_step = powf(cur_note_freq / autogliss_start_freq, 1.0 / autogliss_total_frames);
     autogliss_frame_counter = 0;

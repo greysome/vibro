@@ -15,6 +15,7 @@
 #define fmodf2(a, b) \
   (fmodf((a), (b)) < 0 ? fmodf((a), (b)) + (b) : fmodf((a), (b)))
 
+int abs(int x);
 int clamp(int x, int min, int max);
 float fclamp(float x, float min, float max);
 

@@ -244,7 +244,9 @@ void play_mode_gui() {
   // Local/global octave needs to be updated BEFORE note state.
   // This is because a change in octave will cause change in note state,
   // even if the same key is being held.
-  update_local_octave_modifier();
+  int note;
+  if (is_solo_mode() && (note = get_cur_note_or_prev()) != NIL && get_adsr_states()[note] != RELEASE)
+    update_local_octave_modifier();
   update_note_state();
 
   update_pitch_bend();

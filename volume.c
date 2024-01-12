@@ -3,6 +3,7 @@
 static float note_vol = 0.5;
 // Updates frame-by-frame according to ADSR envelope
 static float actual_vols[NOTETABLE_SIZE] = {0};
+static ADSRState adsr_states[NOTETABLE_SIZE] = {0};
 
 void update_note_vol() {
   note_vol += fclamp(mouse_dx * 0.001, -0.01, 0.01);
@@ -26,7 +27,6 @@ void update_note_vol() {
 }
 
 void apply_adsr() {
-  static ADSRState adsr_states[NOTETABLE_SIZE] = {0};
   Instrument instrument = *get_cur_instrument();
   static float release_peaks[NOTETABLE_SIZE] = {0};  // Value of actualvol right when release starts
 
@@ -100,6 +100,10 @@ float get_note_vol() {
 
 float *get_actual_vols() {
   return actual_vols;
+}
+
+ADSRState *get_adsr_states() {
+  return adsr_states;
 }
 
 void kill_vols() {
