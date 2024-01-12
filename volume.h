@@ -15,6 +15,7 @@ void update_note_vol();
 void apply_adsr();
 float get_note_vol();
 float *get_actual_vols();
+ADSRState *get_adsr_states();
 void kill_vols();
 bool is_silent();
 
