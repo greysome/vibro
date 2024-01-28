@@ -244,7 +244,6 @@ void play_mode_gui() {
   // Local/global octave needs to be updated BEFORE note state.
   // This is because a change in octave will cause change in note state,
   // even if the same key is being held.
-  int note;
   update_local_octave_modifier();
   update_note_state();
 

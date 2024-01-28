@@ -1,5 +1,8 @@
 #include "synthesise.h"
 
+// Defines sin_table
+#include "sin_table.txt"
+
 static float cur_phases[NOTETABLE_SIZE] = {0};
 
 float pulse(float phase, float pulse_width) {
@@ -20,12 +23,17 @@ float saw(float phase, bool nes_style) {
   return y;
 }
 
+float my_sinf(float x) {
+  float phase = fmodf2(x, 2*PI) / (2*PI);
+  return sin_table[(int)(phase*1024)];
+}
+
 float sine(float phase, float *sine_coeffs) {
   float output = 0;
   float amplitude = 0;
   for (int i = 0; i < NUM_HARMONICS; i++) {
     amplitude += sine_coeffs[i];
-    output += sine_coeffs[i] * sinf(phase*2*(i+1)*PI);
+    output += sine_coeffs[i] * my_sinf(phase*2*(i+1)*PI);
   }
   return output / amplitude;
 }
