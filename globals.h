@@ -10,10 +10,11 @@
 #define MAX_SAMPLES_PER_UPDATE 9192
 #define SAMPLE_RATE 96000
 #define BIT_DEPTH 16
-#define RECORD_FILE "out.wav"
 
 // Are we recording?
 extern bool is_recording;
+// How many recordings have we made so far?
+extern int recording_count;
 // Struct to facilitate .wav output
 extern TinyWav tw;
 

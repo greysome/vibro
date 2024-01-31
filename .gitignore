@@ -3,5 +3,5 @@
 *.gcda
 *.gcov
 core.*
-out.wav
+recordings/
 .vscode/

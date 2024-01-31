@@ -20,6 +20,7 @@ extern int screen_height;
 /** I follow Raylib's CamelCase convention for the following functions. **/
 void DrawShadowedText(const char *text, int x, int y, int font_size, Color color);
 void DrawShadowedTextCenter(const char *text, int x, int y, int font_size, Color color);
+void DrawShadowedTextNE(const char *text, int x, int y, int font_size, Color color);
 void DrawShadowedTextSE(const char *text, int x, int y, int font_size, Color color);
 int DrawAndMeasureShadowedText(const char *text, int x, int y, int font_size, Color color);
 

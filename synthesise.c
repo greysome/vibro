@@ -1,5 +1,4 @@
 #include "synthesise.h"
-
 // Defines sin_table
 #include "sin_table.txt"
 

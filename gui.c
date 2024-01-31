@@ -13,6 +13,11 @@ void DrawShadowedTextCenter(const char *text, int x, int y, int font_size, Color
   DrawText(text, x, y, font_size, color);
 }
 
+void DrawShadowedTextNE(const char *text, int x, int y, int font_size, Color color) {
+  Vector2 text_dimens = MeasureTextEx(GetFontDefault(), text, font_size, 0);
+  DrawShadowedText(text, x-text_dimens.x, y, font_size, color);
+}
+
 void DrawShadowedTextSE(const char *text, int x, int y, int font_size, Color color) {
   Vector2 text_dimens = MeasureTextEx(GetFontDefault(), text, font_size, 0);
   DrawShadowedText(text, x-text_dimens.x, y-text_dimens.y, font_size, color);

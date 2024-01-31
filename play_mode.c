@@ -233,8 +233,10 @@ void play_mode_gui() {
   }
 
   if (IsKeyPressed(KEY_GRAVE)) {
-    if (!is_recording)
-      tinywav_open_write(&tw, 1, SAMPLE_RATE, TW_INT16, TW_INLINE, RECORD_FILE);
+    if (!is_recording) {
+      const char *filename = TextFormat("%srecordings/out%d.wav", GetApplicationDirectory(), ++recording_count);
+      tinywav_open_write(&tw, 1, SAMPLE_RATE, TW_INT16, TW_INLINE, filename);
+    }
     else
       tinywav_close_write(&tw);
     is_recording = !is_recording;
@@ -274,12 +276,17 @@ void play_mode_gui() {
   }
 
   BeginDrawing();
-  ClearBackground((Color){64,82,74,255});
-  draw_wave();
-  display_octave_text();
-  display_note_text();
-  display_mode_text();
-  DrawShadowedTextCenter(instrument.name, screen_width/2, screen_height-YMARGIN-20, 30, WHITE);
-  draw_volume_level();
+    ClearBackground((Color){64,82,74,255});
+    draw_wave();
+    display_octave_text();
+    display_note_text();
+    display_mode_text();
+    draw_volume_level();
+
+    DrawShadowedTextCenter(instrument.name, screen_width/2, screen_height-YMARGIN-20, 30, WHITE);
+    if (is_recording) {
+      DrawShadowedTextNE("REC", screen_width-XMARGIN, YMARGIN, 30, WHITE);
+      DrawShadowedTextNE(TextFormat("out%d.wav", recording_count), screen_width-XMARGIN-10, YMARGIN+30, 20, WHITE);
+    }
   EndDrawing();
 }
