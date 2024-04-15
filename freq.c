@@ -127,36 +127,42 @@ void update_vib() {
     vib_depth = 1;
     vib_modifier = 1;
     frames_space_down = 0;
-    frames_space_up = 0;
+    frames_space_up = 1;
     return;
   }
 
   prev_space_down = space_down;
   space_down = IsKeyDown(KEY_SPACE);
 
-  // SPACE was just pressed
-  if (!prev_space_down && space_down) {
-    vib_speed = 1.0 / frames_space_up;
-    frames_space_up = 0;
-  }
-
-  // SPACE was just released
-  if (prev_space_down && !space_down) {
-    vib_depth = fclamp(pow(1.003, frames_space_down), 1, 1.04);
-    frames_space_down = 0;
-  }
-
   // SPACE is down
-  if (space_down)
-    frames_space_down++;
+  if (space_down) {
+    // SPACE is just pressed, now we compute vibrato speed based on
+    // how long SPACE wasn't pressed
+    if (!prev_space_down) {
+      vib_speed = 1.0 / frames_space_up;
+      frames_space_up = 0;
+    }
+    // Continue keeping track of how long SPACE is pressed
+    else
+      frames_space_down++;
+  }
   else {
-    frames_space_up++;
-    // Make vibrato decay if SPACE is not pressed continually
-    if (frames_space_up > 30) {
-      vib_speed = 0;
-      vib_phase = 0;
-      vib_modifier += 0.2 * (1.0 - vib_modifier);
-      return;
+    // SPACE was just released, now we compute vibrato depth based on
+    // how long SPACE was pressed
+    if (prev_space_down) {
+      vib_depth = fclamp(pow(1.003, frames_space_down), 1, 1.04);
+      frames_space_down = 0;
+    }
+    // Continue keeping track of how long SPACE isn't pressed
+    else {
+      frames_space_up++;
+      // Make vibrato decay if SPACE is not pressed for a long while
+      if (frames_space_up > 30) {
+	vib_speed = 0;
+	vib_phase = 0;
+	vib_modifier += 0.2 * (1.0 - vib_modifier);
+	return;
+      }
     }
   }
 
