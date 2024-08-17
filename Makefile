@@ -2,11 +2,11 @@ CFLAGS = -Wall -Wextra -Wpedantic -Wno-unused-but-set-variable -Wno-type-limits
 
 ifeq ($(OS),Windows_NT)
 	CC = x86_64-w64-mingw32-gcc
-	LIBS = -lm -lraylib -lopengl32 -lgdi32 -lwinmm -lWs2_32
+	LIBS = -lm -l:libraylib-win.a -lopengl32 -lgdi32 -lwinmm -lWs2_32
 	OUT = vibro.exe
 else
 	CC = gcc
-	LIBS = -lm -l:libraylib.a
+	LIBS = -lm -l:libraylib-linux.a
 	OUT = vibro
 endif
 

@@ -5,6 +5,12 @@
 
 An instrument controlled by computer keyboard and mouse.
 
+## Building
+
+Just run `make`. It produces an executable `vibro` on Linux, or `vibro.exe` on Windows.
+
+Note on Windows the compiler `x86_64-w64-mingw32-gcc` is required. (Otherwise you have to change in the Makefile.)
+
 ## Features
 
 - Expressive features! (see [Controls](#controls))

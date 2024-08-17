@@ -3,5 +3,6 @@
 *.gcda
 *.gcov
 core.*
+vibro
 recordings/
 .vscode/
